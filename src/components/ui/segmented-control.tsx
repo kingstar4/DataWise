@@ -1,8 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewProps } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
+import { useThemeMode } from '@/context/ThemeContext';
 
 export type SegmentedControlProps = ViewProps & {
   /** Array of segment labels */
@@ -14,7 +14,7 @@ export type SegmentedControlProps = ViewProps & {
 };
 
 /**
- * Themed segmented control / toggle for time periods.
+ * Premium segmented control with pill-style active indicator.
  * Used for Today/Week/Month selectors.
  */
 export function SegmentedControl({
@@ -24,14 +24,17 @@ export function SegmentedControl({
   style,
   ...props
 }: SegmentedControlProps) {
-  const theme = useTheme();
-  const isDark = theme.background === '#0B1020';
+  const { isDark } = useThemeMode();
 
   return (
     <View
       style={[
         styles.container,
-        { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.2)' },
+        {
+          backgroundColor: isDark
+            ? 'rgba(255,255,255,0.06)'
+            : 'rgba(0,0,0,0.08)',
+        },
         style,
       ]}
       {...props}>
@@ -45,7 +48,13 @@ export function SegmentedControl({
               styles.segment,
               isSelected && [
                 styles.selectedSegment,
-                { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.95)' },
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(79, 89, 158, 0.5)'
+                    : 'rgba(255,255,255,0.95)',
+                  // elevation: 4,
+
+                },
               ],
             ]}>
             <Text
@@ -53,11 +62,12 @@ export function SegmentedControl({
                 styles.label,
                 {
                   color: isSelected
-                    ? isDark
-                      ? '#FFFFFF'
-                      : '#1C2765'
-                    : 'rgba(255,255,255,0.6)',
+                    ? '#FFFFFF'
+                    : isDark
+                      ? 'rgba(255,255,255,0.5)'
+                      : 'rgba(255,255,255,0.7)',
                 },
+                isSelected && !isDark && { color: '#1C2765' },
                 isSelected && styles.selectedLabel,
               ]}>
               {segment}
@@ -72,28 +82,31 @@ export function SegmentedControl({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     padding: 3,
   },
   segment: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.two,
-    borderRadius: BorderRadius.sm - 2,
+    paddingVertical: Spacing.two + 2,
+    borderRadius: BorderRadius.md - 2,
   },
   selectedSegment: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    // elevation: 4,
+
   },
   label: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.medium,
   },
   selectedLabel: {
-    fontWeight: '700',
+    fontFamily: Fonts.bold,
+    letterSpacing: 0.3,
+    // elevation: 4,
   },
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { palette } from '@/theme/colors';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.semiBold,
     letterSpacing: 0.3,
   },
 });

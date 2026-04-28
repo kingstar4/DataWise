@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -9,9 +11,9 @@ import {
   HeroHeader,
   InsightCard,
   SearchInput,
-  StatBox,
 } from '@/components/ui';
-import { BottomTabInset, BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
+import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
 import { formatBytes, type FormattedAppData, PERIOD_MAP, useDataUsage } from '@/hooks/useDataUsage';
 
@@ -90,23 +92,31 @@ function generateSubtitle(app: FormattedAppData): string {
 
 // Rotating palette for app icons
 const APP_COLORS = [
-  '#4F599E', '#E1306C', '#FF0000', '#25D366', '#1DB954',
-  '#1877F2', '#FF6900', '#7C3AED', '#0EA5E9', '#F59E0B',
+  '#6366F1', '#EC4899', '#EF4444', '#10B981', '#14B8A6',
+  '#3B82F6', '#F97316', '#8B5CF6', '#06B6D4', '#F59E0B',
 ];
 
 export default function BreakdownScreen() {
   const theme = useTheme();
+  const { isDark, toggle } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const isDark = theme.background === '#0B1020';
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState(0);
 
   // Default to "week" period for the breakdown view
-  const { apps, formattedTotal, grandTotal, isLoading } = useDataUsage('week');
+  const { apps, formattedTotal, grandTotal, isLoading, refetch } = useDataUsage('week');
+
+  // Pull-to-refresh state
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setTimeout(() => setRefreshing(false), 800);
+  }, [refetch]);
 
   // Compute average daily
   const avgDaily = useMemo(() => {
-    const days = 7; // week view
+    const days = 7;
     return formatBytes(days > 0 ? grandTotal / days : 0);
   }, [grandTotal]);
 
@@ -124,7 +134,6 @@ export default function BreakdownScreen() {
   const insightMessage = useMemo(() => {
     if (apps.length === 0) return 'Start using your phone to see data insights.';
 
-    // Find top category by total bytes
     const categoryTotals = new Map<string, number>();
     for (const app of apps) {
       const cat = categorizeApp(app.packageName);
@@ -145,20 +154,61 @@ export default function BreakdownScreen() {
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.four }}>
+      contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.four }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#6366F1"
+          colors={['#6366F1']}
+          progressBackgroundColor={isDark ? '#1A2250' : '#FFFFFF'}
+        />
+      }>
       {/* ──── Hero Section ──── */}
       <HeroHeader style={{ paddingTop: insets.top + Spacing.four }}>
         <View style={styles.heroTitleRow}>
-          <Text style={styles.heroAppName}>DataWise</Text>
-          <Text style={styles.heroTag}>NETWORK STATISTICS</Text>
+          <View>
+            <Text style={styles.heroTag}>Network Statistics</Text>
+            <Text style={styles.heroAppName}>App Breakdown</Text>
+          </View>
+          <View style={styles.heroActions}>
+            <View style={styles.heroAppCount}>
+              <Ionicons name="apps" size={16} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.heroCountText}>{apps.length} apps</Text>
+            </View>
+            <Pressable
+              onPress={toggle}
+              style={({ pressed }) => [
+                styles.themeToggle,
+                pressed && { transform: [{ scale: 0.9 }] },
+              ]}>
+              <Ionicons
+                name={isDark ? 'sunny' : 'moon'}
+                size={18}
+                color="#FFFFFF"
+              />
+            </Pressable>
+          </View>
         </View>
 
-        <Text style={styles.heroSectionLabel}>App Usage</Text>
-
+        {/* Stat pills */}
         <View style={styles.statRow}>
-          <StatBox label="TOTAL USED" value={formattedTotal} />
-          <View style={{ width: Spacing.two }} />
-          <StatBox label="AVG DAILY" value={avgDaily} />
+          <LinearGradient
+            colors={isDark
+              ? ['rgba(99,102,241,0.15)', 'rgba(99,102,241,0.05)']
+              : ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
+            style={styles.statPill}>
+            <Text style={styles.statLabel}>Total Used</Text>
+            <Text style={styles.statValue}>{formattedTotal}</Text>
+          </LinearGradient>
+          <LinearGradient
+            colors={isDark
+              ? ['rgba(16,185,129,0.15)', 'rgba(16,185,129,0.05)']
+              : ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
+            style={styles.statPill}>
+            <Text style={styles.statLabel}>Avg Daily</Text>
+            <Text style={styles.statValue}>{avgDaily}</Text>
+          </LinearGradient>
         </View>
       </HeroHeader>
 
@@ -189,23 +239,30 @@ export default function BreakdownScreen() {
         {/* App List */}
         <Card>
           <View style={styles.listHeader}>
-            <Text style={[styles.listTitle, { color: theme.text }]}>
-              {filteredApps.length} Apps
-            </Text>
-            <Text style={[styles.sortLabel, { color: theme.textMuted }]}>
-              By usage ↓
-            </Text>
+            <View style={styles.listTitleRow}>
+              <View style={[styles.listDot, { backgroundColor: '#6366F1' }]} />
+              <Text style={[styles.listTitle, { color: theme.text }]}>
+                {filteredApps.length} Apps
+              </Text>
+            </View>
+            <View style={styles.sortBadge}>
+              <Ionicons name="arrow-down" size={12} color={theme.textMuted} />
+              <Text style={[styles.sortLabel, { color: theme.textMuted }]}>
+                By usage
+              </Text>
+            </View>
           </View>
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.secondary} />
+              <ActivityIndicator size="small" color="#6366F1" />
               <Text style={[styles.loadingText, { color: theme.textMuted }]}>
                 Loading app data…
               </Text>
             </View>
           ) : filteredApps.length === 0 ? (
             <View style={styles.loadingContainer}>
+              <Ionicons name="search-outline" size={32} color={theme.textMuted} />
               <Text style={[styles.loadingText, { color: theme.textMuted }]}>
                 {searchQuery ? 'No apps match your search.' : 'No data usage recorded yet.'}
               </Text>
@@ -217,7 +274,7 @@ export default function BreakdownScreen() {
                   <View
                     style={[
                       styles.separator,
-                      { backgroundColor: isDark ? '#25304F' : '#F1F5F9' },
+                      { backgroundColor: isDark ? 'rgba(79,89,158,0.12)' : '#F1F5F9' },
                     ]}
                   />
                 )}
@@ -253,30 +310,78 @@ const styles = StyleSheet.create({
   heroTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: Spacing.four,
   },
+  heroTag: {
+    fontSize: 11,
+    fontFamily: Fonts.semiBold,
+    color: 'rgba(255,255,255,0.4)',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   heroAppName: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 24,
+    fontFamily: Fonts.extraBold,
     color: '#FFFFFF',
     letterSpacing: -0.5,
   },
-  heroTag: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.4)',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
-  heroSectionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
+  heroAppCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  themeToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroCountText: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
     color: 'rgba(255,255,255,0.7)',
-    marginBottom: Spacing.three,
   },
   statRow: {
     flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  statPill: {
+    flex: 1,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.three,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  statLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.semiBold,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 20,
+    fontFamily: Fonts.numberBold,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
   contentArea: {
     paddingHorizontal: Spacing.three,
@@ -290,15 +395,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.three,
+  },
+  listTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  listDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   listTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.bold,
+  },
+  sortBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   sortLabel: {
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: Fonts.medium,
   },
   separator: {
     height: 1,
@@ -307,11 +427,11 @@ const styles = StyleSheet.create({
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.four,
+    paddingVertical: Spacing.five,
     gap: Spacing.two,
   },
   loadingText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.medium,
   },
 });

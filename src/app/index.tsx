@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -10,23 +12,29 @@ import {
   InsightCard,
   SegmentedControl,
 } from '@/components/ui';
-import { BottomTabInset, BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
+import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
+import {
+  projectMonthlyUsage,
+  useBundleRecommendation,
+} from '@/hooks/useBundleRecommendation';
 import { PERIOD_MAP, useDataUsage } from '@/hooks/useDataUsage';
 import UsageAccess from '@/native/UsageAccess';
+import { dialUSSD } from '@/utils/dial-ussd';
 
 // Rotating palette for dynamically colored app icons
 const APP_COLORS = [
-  '#4F599E', '#E1306C', '#FF0000', '#25D366', '#1DB954',
-  '#1877F2', '#FF6900', '#7C3AED', '#0EA5E9', '#F59E0B',
+  '#6366F1', '#EC4899', '#EF4444', '#10B981', '#14B8A6',
+  '#3B82F6', '#F97316', '#8B5CF6', '#06B6D4', '#F59E0B',
 ];
 
 const PERIOD_LABELS = ['today', 'this week', 'this month'];
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const { isDark, toggle } = useThemeMode();
   const insets = useSafeAreaInsets();
-  const isDark = theme.background === '#0B1020';
   const [periodIndex, setPeriodIndex] = useState(1);
   const [showAllDrainers, setShowAllDrainers] = useState(false);
 
@@ -48,13 +56,36 @@ export default function HomeScreen() {
     totalBackground,
     grandTotal,
     isLoading,
+    refetch,
   } = useDataUsage(period);
+
+  // Pull-to-refresh state
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    // Brief delay so the spinner doesn't flash
+    setTimeout(() => setRefreshing(false), 800);
+  }, [refetch]);
 
   // Split formatted total into number and unit for the hero display
   const heroDisplay = useMemo(() => {
     const parts = formattedTotal.split(' ');
     return { number: parts[0] || '0', unit: parts[1] || 'B' };
   }, [formattedTotal]);
+
+  // ── Bundle recommendation ──
+  const projectedMonthly = useMemo(
+    () => projectMonthlyUsage(grandTotal, period),
+    [grandTotal, period],
+  );
+  const recommendation = useBundleRecommendation(carrierName, projectedMonthly);
+
+  const handleBuyBundle = useCallback(() => {
+    if (recommendation) {
+      dialUSSD(recommendation.bundle.ussdCode, recommendation.bundle.name);
+    }
+  }, [recommendation]);
 
   // All data drainers (mapped for display)
   const allDrainers = useMemo(() => {
@@ -83,27 +114,58 @@ export default function HomeScreen() {
     return `${topApp} is your biggest data consumer at ${topUsage}. Your background usage is well controlled at ${bgPercent}%.`;
   }, [apps, totalBackground, grandTotal]);
 
+  // Dynamic greeting based on current time
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 17) return 'Good Afternoon';
+    if (hour >= 17 && hour < 21) return 'Good Evening';
+    return 'Good Night';
+  }, []);
+
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.four }}>
+      contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.four }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#6366F1"
+          colors={['#6366F1']}
+          progressBackgroundColor={isDark ? '#1A2250' : '#FFFFFF'}
+        />
+      }>
       {/* ──── Hero Section ──── */}
       <HeroHeader style={{ paddingTop: insets.top + Spacing.four }}>
         <View style={styles.heroGreeting}>
-          <Text style={styles.greetingText}>Good Morning, User</Text>
-          <View style={styles.settingsCircle}>
-            <Text style={styles.settingsIcon}>⚙</Text>
+          <View>
+            <Text style={styles.greetingText}>{greeting}</Text>
+            <Text style={styles.appName}>DataWise</Text>
           </View>
+          {/* Theme Toggle Button */}
+          <Pressable
+            onPress={toggle}
+            style={({ pressed }) => [
+              styles.themeToggle,
+              pressed && { transform: [{ scale: 0.9 }] },
+            ]}>
+            <Ionicons
+              name={isDark ? 'sunny' : 'moon'}
+              size={20}
+              color="#FFFFFF"
+            />
+          </Pressable>
         </View>
 
         <View style={styles.heroDataBlock}>
           {isLoading ? (
             <ActivityIndicator size="large" color="#FFFFFF" />
           ) : (
-            <>
+            <View style={styles.heroValueWrap}>
               <Text style={styles.heroNumber}>{heroDisplay.number}</Text>
               <Text style={styles.heroUnit}>{heroDisplay.unit}</Text>
-            </>
+            </View>
           )}
         </View>
 
@@ -134,12 +196,17 @@ export default function HomeScreen() {
         {/* Top Drainers */}
         <Card>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              Top Drainers
-            </Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={[styles.sectionDot, { backgroundColor: '#6366F1' }]} />
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                Top Drainers
+              </Text>
+            </View>
             {allDrainers.length > 4 && (
-              <Pressable onPress={() => setShowAllDrainers((prev) => !prev)}>
-                <Text style={[styles.seeAll, { color: theme.secondary }]}>
+              <Pressable
+                onPress={() => setShowAllDrainers((prev) => !prev)}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+                <Text style={[styles.seeAll, { color: '#6366F1' }]}>
                   {showAllDrainers ? 'Show Less' : 'See All'}
                 </Text>
               </Pressable>
@@ -148,13 +215,14 @@ export default function HomeScreen() {
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.secondary} />
+              <ActivityIndicator size="small" color="#6366F1" />
               <Text style={[styles.loadingText, { color: theme.textMuted }]}>
                 Loading usage data…
               </Text>
             </View>
           ) : visibleDrainers.length === 0 ? (
             <View style={styles.loadingContainer}>
+              <Ionicons name="cellular-outline" size={32} color={theme.textMuted} />
               <Text style={[styles.loadingText, { color: theme.textMuted }]}>
                 No data usage recorded yet.
               </Text>
@@ -166,7 +234,7 @@ export default function HomeScreen() {
                   <View
                     style={[
                       styles.separator,
-                      { backgroundColor: isDark ? '#25304F' : '#F1F5F9' },
+                      { backgroundColor: isDark ? 'rgba(79,89,158,0.15)' : '#F1F5F9' },
                     ]}
                   />
                 )}
@@ -183,23 +251,52 @@ export default function HomeScreen() {
           )}
         </Card>
 
-        {/* Recommended Bundle */}
-        <Card style={[styles.bundleCard, { backgroundColor: isDark ? '#0D1433' : '#1C2765' }]}>
-          <View style={styles.bundleHeader}>
-            <Text style={styles.bundleLabel}>Recommended Bundle</Text>
-            <Badge variant="success" label="Save ₦1,200" />
-          </View>
-          <Text style={styles.bundleName}>MTN SME Data 10GB</Text>
-          <View style={styles.bundleMeta}>
-            <Text style={styles.bundlePrice}>₦2,500</Text>
-            <Text style={styles.bundleValidity}>30 days validity</Text>
-          </View>
-          <View style={styles.bundleAction}>
-            <View style={styles.bundleButton}>
-              <Text style={styles.bundleButtonText}>View Bundle</Text>
+        {/* Recommended Bundle — dynamic */}
+        {recommendation && (
+          <LinearGradient
+            colors={isDark
+              ? ['#1A1F4E', '#252B6A']
+              : ['#2D3A8C', '#4338CA']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.bundleCard}>
+            <View style={styles.bundleHeader}>
+              <View style={styles.bundleLabelRow}>
+                <Ionicons name="diamond" size={14} color="rgba(255,255,255,0.6)" />
+                <Text style={styles.bundleLabel}>Recommended Bundle</Text>
+              </View>
+              {recommendation.savingsNGN > 0 && (
+                <Badge
+                  variant="success"
+                  label={`Save ₦${recommendation.savingsNGN.toLocaleString()}`}
+                />
+              )}
             </View>
-          </View>
-        </Card>
+            <Text style={styles.bundleName}>{recommendation.bundle.name}</Text>
+            <View style={styles.bundleMeta}>
+              <Text style={styles.bundlePrice}>
+                ₦{recommendation.bundle.priceNGN.toLocaleString()}
+              </Text>
+              <Text style={styles.bundleValidity}>
+                {recommendation.bundle.validityDays} days validity
+              </Text>
+            </View>
+            <View style={styles.bundleFooter}>
+              <Text style={styles.bundleProjection}>
+                Based on ~{recommendation.projectedUsageGB.toFixed(1)} GB/mo usage
+              </Text>
+              <Pressable
+                onPress={handleBuyBundle}
+                style={({ pressed }) => [
+                  styles.bundleButton,
+                  pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+                ]}>
+                <Text style={styles.bundleButtonText}>Buy Bundle</Text>
+                <Ionicons name="call" size={14} color="#1C2765" />
+              </Pressable>
+            </View>
+          </LinearGradient>
+        )}
       </View>
     </ScrollView>
   );
@@ -212,43 +309,51 @@ const styles = StyleSheet.create({
   heroGreeting: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: Spacing.four,
   },
   greetingText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 15,
-    fontWeight: '500',
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 14,
+    fontFamily: Fonts.medium,
+    marginBottom: 2,
   },
-  settingsCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+  appName: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontFamily: Fonts.extraBold,
+    letterSpacing: -0.5,
+  },
+  themeToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsIcon: {
-    color: '#FFFFFF',
-    fontSize: 18,
-  },
   heroDataBlock: {
+    marginBottom: Spacing.two,
+    minHeight: 72,
+    justifyContent: 'center',
+  },
+  heroValueWrap: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: Spacing.two,
-    marginBottom: Spacing.two,
-    minHeight: 66,
   },
   heroNumber: {
-    fontSize: 56,
-    fontWeight: '800',
+    fontSize: 60,
+    fontFamily: Fonts.numberBold,
     color: '#FFFFFF',
-    letterSpacing: -2,
+    letterSpacing: -3,
   },
   heroUnit: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: 26,
+    fontFamily: Fonts.numberSemiBold,
+    color: 'rgba(255,255,255,0.6)',
   },
   heroMeta: {
     flexDirection: 'row',
@@ -258,8 +363,8 @@ const styles = StyleSheet.create({
   },
   heroSubtext: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    fontWeight: '400',
+    color: 'rgba(255,255,255,0.5)',
+    fontFamily: Fonts.regular,
   },
   segmentedControl: {
     marginTop: Spacing.two,
@@ -272,79 +377,110 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.three,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  sectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: Fonts.bold,
+    letterSpacing: -0.3,
   },
   seeAll: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bold,
   },
   separator: {
     height: 1,
     marginVertical: Spacing.one,
   },
   bundleCard: {
+    borderRadius: BorderRadius.xl,
     padding: Spacing.four,
+    overflow: 'hidden',
   },
   bundleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.three,
+  },
+  bundleLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   bundleLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.semiBold,
     color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   bundleName: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontFamily: Fonts.extraBold,
     color: '#FFFFFF',
     marginBottom: Spacing.two,
+    letterSpacing: -0.5,
   },
   bundleMeta: {
     flexDirection: 'row',
     gap: Spacing.three,
-    marginBottom: Spacing.three,
+    marginBottom: Spacing.four,
+    alignItems: 'center',
   },
   bundlePrice: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontFamily: Fonts.numberBold,
     color: '#FFFFFF',
   },
   bundleValidity: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    fontWeight: '400',
+    color: 'rgba(255,255,255,0.45)',
+    fontFamily: Fonts.regular,
   },
-  bundleAction: {
-    alignItems: 'flex-start',
+  bundleFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bundleProjection: {
+    fontSize: 11,
+    fontFamily: Fonts.medium,
+    color: 'rgba(255,255,255,0.4)',
+    flex: 1,
   },
   bundleButton: {
+    flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.three + 4,
     paddingVertical: Spacing.two + 2,
     borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    gap: Spacing.one + 2,
   },
   bundleButtonText: {
     color: '#1C2765',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
+    fontFamily: Fonts.bold,
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.four,
+    paddingVertical: Spacing.five,
     gap: Spacing.two,
   },
   loadingText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.medium,
   },
 });

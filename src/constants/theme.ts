@@ -32,30 +32,29 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+/**
+ * Font family names — must match the keys used in useFonts() in _layout.tsx.
+ *
+ * Plus Jakarta Sans: body text, labels, UI elements
+ * Space Grotesk: numbers, metrics, data displays
+ *
+ * On Android, fontWeight doesn't work with custom fonts.
+ * Each weight must be its own fontFamily.
+ */
+export const Fonts = {
+  // Plus Jakarta Sans — body
+  regular: 'PlusJakartaSans_400Regular',
+  medium: 'PlusJakartaSans_500Medium',
+  semiBold: 'PlusJakartaSans_600SemiBold',
+  bold: 'PlusJakartaSans_700Bold',
+  extraBold: 'PlusJakartaSans_800ExtraBold',
+
+  // Space Grotesk — numbers / metrics
+  numberRegular: 'SpaceGrotesk_400Regular',
+  numberMedium: 'SpaceGrotesk_500Medium',
+  numberSemiBold: 'SpaceGrotesk_600SemiBold',
+  numberBold: 'SpaceGrotesk_700Bold',
+} as const;
 
 export const Spacing = {
   half: 2,

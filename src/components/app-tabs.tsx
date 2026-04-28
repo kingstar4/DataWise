@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { useThemeMode } from '@/context/ThemeContext';
 import { palette } from '@/theme/colors';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-  const isDark = scheme === 'dark';
+  const theme = useTheme();
+  const { isDark } = useThemeMode();
+  const insets = useSafeAreaInsets();
   const activeTint = isDark ? '#FFFFFF' : palette.navy;
-  const inactiveTint = colors.textMuted;
+  const inactiveTint = theme.textMuted;
+  const bottomPadding = Math.max(insets.bottom, 10);
 
   return (
     <Tabs
@@ -20,11 +22,11 @@ export default function AppTabs() {
         tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: inactiveTint,
         tabBarStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: isDark ? '#0D1433' : '#FFFFFF',
           borderTopColor: isDark ? '#1A2250' : '#E2E8F0',
           borderTopWidth: 1,
-          height: Platform.OS === 'android' ? 64 : 88,
-          paddingBottom: Platform.OS === 'android' ? 10 : 28,
+          height: 56 + bottomPadding,
+          paddingBottom: bottomPadding,
           paddingTop: 8,
           elevation: 0,
         },

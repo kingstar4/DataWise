@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, type ViewProps } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
+import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
 
 export type FilterChipProps = ViewProps & {
@@ -25,7 +26,7 @@ export function FilterChip({
   ...props
 }: FilterChipProps) {
   const theme = useTheme();
-  const isDark = theme.background === '#0B1020';
+  const { isDark } = useThemeMode();
 
   return (
     <Pressable
@@ -33,12 +34,14 @@ export function FilterChip({
       style={({ pressed }) => [
         styles.container,
         selected
-          ? { backgroundColor: theme.primary }
+          ? {
+            backgroundColor: isDark ? '#293a97ff' : theme.primary,
+          }
           : {
-              backgroundColor: isDark ? '#1A2250' : '#F1F5F9',
-              borderWidth: 1,
-              borderColor: isDark ? '#25304F' : '#E2E8F0',
-            },
+            backgroundColor: isDark ? '#1A2250' : '#F1F5F9',
+            borderWidth: 1,
+            borderColor: isDark ? '#25304F' : '#E2E8F0',
+          },
         pressed && styles.pressed,
         style as any,
       ]}
@@ -50,7 +53,7 @@ export function FilterChip({
             color: selected
               ? '#FFFFFF'
               : isDark
-                ? '#CBD5E1'
+                ? '#E2E8F0'
                 : '#64748B',
           },
         ]}>
@@ -68,7 +71,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.semiBold,
   },
   pressed: {
     opacity: 0.8,

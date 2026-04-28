@@ -3,7 +3,7 @@ import { Image, StyleSheet, Text, View, type ViewProps } from 'react-native';
 
 import { ProgressBar } from './progress-bar';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 // ── Usage-based color thresholds ──
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   iconLetter: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.bold,
   },
   content: {
     flex: 1,
@@ -131,15 +131,15 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.semiBold,
   },
   subtitle: {
     fontSize: 12,
-    fontWeight: '400',
+    fontFamily: Fonts.regular,
   },
   usage: {
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: Fonts.numberBold,
     marginLeft: Spacing.two,
   },
 });

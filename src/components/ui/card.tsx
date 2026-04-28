@@ -3,6 +3,7 @@ import { StyleSheet, View, type ViewProps } from 'react-native';
 
 import { BorderRadius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useThemeMode } from '@/context/ThemeContext';
 
 export type CardProps = ViewProps & {
   /** Use 'elevated' for shadow/border, 'flat' for no depth */
@@ -10,21 +11,27 @@ export type CardProps = ViewProps & {
 };
 
 /**
- * Themed card component with rounded corners and depth.
- * Light mode: white surface with soft shadow.
- * Dark mode: dark surface with subtle border.
+ * Glassmorphism-styled card component.
+ * Light mode: white with soft shadow and subtle border.
+ * Dark mode: frosted glass effect with translucent background.
  */
 export function Card({ style, variant = 'elevated', children, ...props }: CardProps) {
   const theme = useTheme();
-  const isDark = theme.background === '#0B1020';
+  const { isDark } = useThemeMode();
 
   return (
     <View
       style={[
         styles.base,
-        { backgroundColor: theme.card },
+        {
+          backgroundColor: isDark
+            ? 'rgba(18, 25, 51, 0.85)'
+            : 'rgba(255, 255, 255, 0.92)',
+        },
         variant === 'elevated' && (isDark ? styles.elevatedDark : styles.elevatedLight),
-        isDark && variant === 'elevated' && { borderColor: theme.border },
+        isDark && variant === 'elevated' && {
+          borderColor: 'rgba(79, 89, 158, 0.2)',
+        },
         style,
       ]}
       {...props}>
@@ -35,17 +42,24 @@ export function Card({ style, variant = 'elevated', children, ...props }: CardPr
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.three,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.three + 4,
   },
   elevatedLight: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowColor: '#1C2765',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.6)',
   },
   elevatedDark: {
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
 });

@@ -1,8 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, Text, View, type ViewProps } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useThemeMode } from '@/context/ThemeContext';
 
 export type InsightCardProps = ViewProps & {
   /** Title text for the insight */
@@ -11,12 +14,12 @@ export type InsightCardProps = ViewProps & {
   message: string;
   /** Optional icon name (Material Icons name) */
   icon?: string;
-  /** Accent color for the left border/icon */
+  /** Accent color for the gradient border */
   accentColor?: string;
 };
 
 /**
- * Themed insight/recommendation card with accent border.
+ * Premium insight card with gradient accent strip and icon.
  * Used for Quick Insights on Home, Optimizer Insights on Usage Details, etc.
  */
 export function InsightCard({
@@ -28,7 +31,7 @@ export function InsightCard({
   ...props
 }: InsightCardProps) {
   const theme = useTheme();
-  const isDark = theme.background === '#0B1020';
+  const { isDark } = useThemeMode();
   const accent = accentColor ?? theme.secondary;
 
   return (
@@ -36,28 +39,60 @@ export function InsightCard({
       style={[
         styles.container,
         {
-          backgroundColor: theme.surfaceAlt,
-          borderLeftColor: accent,
+          backgroundColor: isDark
+            ? 'rgba(18, 25, 51, 0.8)'
+            : '#FFFFFF',
+          borderWidth: 1,
+          borderColor: isDark
+            ? 'rgba(79, 89, 158, 0.2)'
+            : accent + '30',
         },
-        isDark && { borderColor: theme.border, borderWidth: 1, borderLeftWidth: 3 },
+        !isDark && styles.lightShadow,
         style,
       ]}
       {...props}>
-      <View style={styles.header}>
-        {icon && (
-          <Text style={[styles.icon, { color: accent }]}>{icon}</Text>
-        )}
-        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+      {/* Gradient accent strip */}
+      <LinearGradient
+        colors={[accent, isDark ? '#7C3AED' : '#4338CA']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.accentStrip}
+      />
+      <View style={styles.contentWrap}>
+        <View style={styles.header}>
+          <View style={[styles.iconCircle, { backgroundColor: accent + '20' }]}>
+            <Ionicons
+              name={title.includes('Quick') ? 'flash' : 'bulb'}
+              size={16}
+              color={accent}
+            />
+          </View>
+          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        </View>
+        <Text style={[styles.message, { color: theme.textMuted }]}>{message}</Text>
       </View>
-      <Text style={[styles.message, { color: theme.textMuted }]}>{message}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.md,
-    borderLeftWidth: 3,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+  lightShadow: {
+    shadowColor: '#1C2765',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  accentStrip: {
+    width: 4,
+  },
+  contentWrap: {
+    flex: 1,
     padding: Spacing.three,
     gap: Spacing.two,
   },
@@ -66,17 +101,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
-  icon: {
-    fontSize: 20,
-    fontFamily: 'Material Icons',
+  iconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bold,
+    letterSpacing: 0.2,
   },
   message: {
     fontSize: 13,
     lineHeight: 20,
-    fontWeight: '400',
+    fontFamily: Fonts.regular,
   },
 });

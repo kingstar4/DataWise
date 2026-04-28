@@ -1,14 +1,29 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
+import { ThemeProvider as NavThemeProvider } from '@react-navigation/native';
+import { useFonts } from 'expo-font';
 import React from 'react';
-import { useColorScheme } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import UsagePermissionScreen from '@/components/permission-screen';
+import { ThemeProvider, useNavTheme } from '@/context/ThemeContext';
 import { useUsagePermission } from '@/hooks/useUsagePermission';
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+function AppContent() {
+  const navTheme = useNavTheme();
   const { hasPermission, isLoading, onboardingCompleted, openSettings } =
     useUsagePermission();
 
@@ -16,27 +31,54 @@ export default function TabLayout() {
   // keep the splash visible (don't flash the wrong screen).
   if (isLoading) {
     return (
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={navTheme}>
         <AnimatedSplashOverlay />
-      </ThemeProvider>
+      </NavThemeProvider>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <NavThemeProvider value={navTheme}>
       <AnimatedSplashOverlay />
       {hasPermission ? (
         // ── Permission granted → show the main app ──
         <AppTabs />
       ) : (
         // ── Permission not granted → show the permission screen ──
-        // The screen adjusts its copy based on whether this is
-        // first-time onboarding or a revoked-permission scenario.
         <UsagePermissionScreen
           onboardingCompleted={onboardingCompleted}
           onOpenSettings={openSettings}
         />
       )}
+    </NavThemeProvider>
+  );
+}
+
+export default function TabLayout() {
+  const [fontsLoaded] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+    SpaceGrotesk_400Regular,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+  });
+
+  // Show a minimal loading state while fonts load
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0B1020', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
+    );
+  }
+
+  return (
+    <ThemeProvider>
+      <AppContent />
     </ThemeProvider>
   );
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, type ViewProps } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type BarChartDataItem = {
@@ -108,10 +108,10 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontWeight: '500',
+    fontFamily: Fonts.numberMedium,
     textAlign: 'center',
   },
   labelHighlighted: {
-    fontWeight: '700',
+    fontFamily: Fonts.numberBold,
   },
 });

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -11,6 +11,7 @@ import {
   InsightCard,
   ProgressBar,
   SegmentedControl,
+  SkeletonHeroValue,
 } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
@@ -101,7 +102,7 @@ export default function UsageScreen() {
 
         <View style={styles.heroValueRow}>
           {isLoading ? (
-            <ActivityIndicator size="large" color="#FFFFFF" />
+            <SkeletonHeroValue />
           ) : (
             <>
               <Text style={styles.heroNumber}>{heroDisplay.number}</Text>

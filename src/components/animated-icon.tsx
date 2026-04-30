@@ -1,132 +1,199 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
-import Animated, { Easing, Keyframe } from 'react-native-reanimated';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import Animated, { Easing, FadeIn, FadeOut, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
-const DURATION = 600;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('screen');
+const DURATION = 1200;
 
+/**
+ * Premium animated splash overlay for DataWise.
+ * Shows a dark navy background with the DataWise icon logo animating in,
+ * then fades out gracefully to reveal the app.
+ */
 export function AnimatedSplashOverlay() {
   const [visible, setVisible] = useState(true);
 
   if (!visible) return null;
 
-  const splashKeyframe = new Keyframe({
+  // Icon scales up from small to normal with elastic bounce
+  const iconEnterKeyframe = new Keyframe({
     0: {
-      transform: [{ scale: INITIAL_SCALE_FACTOR }],
-      opacity: 1,
-    },
-    20: {
-      opacity: 1,
-    },
-    70: {
+      transform: [{ scale: 0.5 }],
       opacity: 0,
-      easing: Easing.elastic(0.7),
+    },
+    30: {
+      transform: [{ scale: 1.1 }],
+      opacity: 1,
+      easing: Easing.out(Easing.cubic),
+    },
+    50: {
+      transform: [{ scale: 0.95 }],
+      opacity: 1,
+      easing: Easing.inOut(Easing.ease),
+    },
+    65: {
+      transform: [{ scale: 1.02 }],
+      opacity: 1,
+      easing: Easing.inOut(Easing.ease),
+    },
+    75: {
+      transform: [{ scale: 1 }],
+      opacity: 1,
+      easing: Easing.out(Easing.ease),
+    },
+    90: {
+      transform: [{ scale: 1 }],
+      opacity: 1,
+    },
+    100: {
+      transform: [{ scale: 12 }],
+      opacity: 0,
+      easing: Easing.in(Easing.cubic),
+    },
+  });
+
+  // Glow ring pulses behind the icon
+  const glowKeyframe = new Keyframe({
+    0: {
+      transform: [{ scale: 0.6 }],
+      opacity: 0,
+    },
+    30: {
+      transform: [{ scale: 1.4 }],
+      opacity: 0.5,
+      easing: Easing.out(Easing.cubic),
+    },
+    75: {
+      transform: [{ scale: 1.6 }],
+      opacity: 0.3,
+      easing: Easing.inOut(Easing.ease),
+    },
+    100: {
+      transform: [{ scale: 2.5 }],
+      opacity: 0,
+      easing: Easing.in(Easing.cubic),
+    },
+  });
+
+  // App name fades in and out
+  const textKeyframe = new Keyframe({
+    0: {
+      opacity: 0,
+      transform: [{ translateY: 20 }],
+    },
+    35: {
+      opacity: 1,
+      transform: [{ translateY: 0 }],
+      easing: Easing.out(Easing.cubic),
+    },
+    80: {
+      opacity: 1,
+      transform: [{ translateY: 0 }],
     },
     100: {
       opacity: 0,
-      transform: [{ scale: 1 }],
-      easing: Easing.elastic(0.7),
+      transform: [{ translateY: -10 }],
+      easing: Easing.in(Easing.ease),
     },
   });
 
   return (
     <Animated.View
-      entering={splashKeyframe.duration(DURATION).withCallback((finished) => {
-        'worklet';
-        if (finished) {
-          scheduleOnRN(setVisible, false);
-        }
-      })}
-      style={styles.backgroundSolidColor}
-    />
-  );
-}
+      style={styles.container}
+    >
+      <LinearGradient
+        colors={['#0B1020', '#121933', '#0B1020']}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-const keyframe = new Keyframe({
-  0: {
-    transform: [{ scale: INITIAL_SCALE_FACTOR }],
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(0.7),
-  },
-});
-
-const logoKeyframe = new Keyframe({
-  0: {
-    transform: [{ scale: 1.3 }],
-    opacity: 0,
-  },
-  40: {
-    transform: [{ scale: 1.3 }],
-    opacity: 0,
-    easing: Easing.elastic(0.7),
-  },
-  100: {
-    opacity: 1,
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(0.7),
-  },
-});
-
-const glowKeyframe = new Keyframe({
-  0: {
-    transform: [{ rotateZ: '0deg' }],
-  },
-  100: {
-    transform: [{ rotateZ: '7200deg' }],
-  },
-});
-
-export function AnimatedIcon() {
-  return (
-    <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
-        <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
+      {/* Ambient glow behind icon */}
+      <Animated.View
+        entering={glowKeyframe.duration(DURATION)}
+        style={styles.glowContainer}
+      >
+        <Image
+          style={styles.glow}
+          source={require('@/assets/images/logo-glow.png')}
+        />
       </Animated.View>
 
-      <Animated.View entering={keyframe.duration(DURATION)} style={styles.background} />
-      <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
+      {/* DataWise icon logo */}
+      <Animated.View
+        entering={iconEnterKeyframe.duration(DURATION).withCallback((finished) => {
+          'worklet';
+          if (finished) {
+            scheduleOnRN(setVisible, false);
+          }
+        })}
+        style={styles.iconWrapper}
+      >
+        <Image
+          style={styles.icon}
+          source={require('@/assets/images/icon.png')}
+          contentFit="contain"
+        />
       </Animated.View>
-    </View>
+
+      {/* App name text */}
+      <Animated.View
+        entering={textKeyframe.duration(DURATION)}
+        style={styles.textContainer}
+      >
+        <Text style={styles.appName}>DataWise</Text>
+        <Text style={styles.tagline}>Smart usage insights</Text>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  imageContainer: {
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    backgroundColor: '#0B1020',
+  },
+  glowContainer: {
+    position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
   },
   glow: {
-    width: 201,
-    height: 201,
-    position: 'absolute',
+    width: 300,
+    height: 300,
+    opacity: 0.6,
   },
-  iconContainer: {
+  iconWrapper: {
     justifyContent: 'center',
     alignItems: 'center',
-    width: 128,
-    height: 128,
-    zIndex: 100,
+    zIndex: 10,
   },
-  image: {
+  icon: {
+    width: 140,
+    height: 140,
+    borderRadius: 32,
+  },
+  textContainer: {
     position: 'absolute',
-    width: 76,
-    height: 71,
+    bottom: SCREEN_HEIGHT * 0.18,
+    alignItems: 'center',
   },
-  background: {
-    borderRadius: 40,
-    experimental_backgroundImage: `linear-gradient(180deg, #3C9FFE, #0274DF)`,
-    width: 128,
-    height: 128,
-    position: 'absolute',
+  appName: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    letterSpacing: 1.5,
   },
-  backgroundSolidColor: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#208AEF',
-    zIndex: 1000,
+  tagline: {
+    fontSize: 14,
+    color: '#CBD5E1',
+    marginTop: 6,
+    letterSpacing: 0.5,
   },
 });

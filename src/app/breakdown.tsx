@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -11,6 +11,7 @@ import {
   HeroHeader,
   InsightCard,
   SearchInput,
+  SkeletonAppList,
 } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
@@ -254,12 +255,7 @@ export default function BreakdownScreen() {
           </View>
 
           {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#6366F1" />
-              <Text style={[styles.loadingText, { color: theme.textMuted }]}>
-                Loading app data…
-              </Text>
-            </View>
+            <SkeletonAppList count={6} />
           ) : filteredApps.length === 0 ? (
             <View style={styles.loadingContainer}>
               <Ionicons name="search-outline" size={32} color={theme.textMuted} />

@@ -8,12 +8,13 @@
     "scheme": "datawise",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1A1F4E",
-        "foregroundImage": "./assets/images/icon.png"
+        "backgroundColor": "#0B1020",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.thehubx.DataWise"
@@ -27,10 +28,12 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#0B1020",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
           "android": {
-            "image": "./assets/images/icon.png",
-            "imageWidth": 76
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 200
           }
         }
       ],

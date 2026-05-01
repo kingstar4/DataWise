@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Image, StyleSheet, Text, View, type ViewProps } from 'react-native';
 
 import { ProgressBar } from './progress-bar';
@@ -40,8 +40,11 @@ export type AppUsageRowProps = ViewProps & {
 /**
  * App usage list item with real icon (or letter fallback), name, usage amount,
  * and a color-coded progress bar (green/yellow/red based on consumption).
+ *
+ * Wrapped in React.memo — only re-renders when its own props change,
+ * not when a sibling or parent re-renders.
  */
-export function AppUsageRow({
+export const AppUsageRow = React.memo(function AppUsageRow({
   name,
   usage,
   progress,
@@ -58,13 +61,16 @@ export function AppUsageRow({
   const usageColor = barColor ?? getUsageColor(totalBytes);
   const hasIcon = iconBase64 != null && iconBase64.length > 0;
 
+  // Memoize the base64 URI to avoid creating a new object every render
+  const iconSource = useMemo(
+    () => (hasIcon ? { uri: `data:image/png;base64,${iconBase64}` } : null),
+    [hasIcon, iconBase64],
+  );
+
   return (
     <View style={[styles.container, style]} {...props}>
-      {hasIcon ? (
-        <Image
-          source={{ uri: `data:image/png;base64,${iconBase64}` }}
-          style={styles.iconImage}
-        />
+      {iconSource ? (
+        <Image source={iconSource} style={styles.iconImage} />
       ) : (
         <View style={[styles.iconBox, { backgroundColor: bgColor }]}>
           <Text style={styles.iconLetter}>{name.charAt(0).toUpperCase()}</Text>
@@ -90,7 +96,7 @@ export function AppUsageRow({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

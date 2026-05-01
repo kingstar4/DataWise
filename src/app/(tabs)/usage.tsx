@@ -12,6 +12,7 @@ import {
   ProgressBar,
   SegmentedControl,
   SkeletonHeroValue,
+  ThemeToggle,
 } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
@@ -20,7 +21,7 @@ import { PERIOD_MAP, useDataUsage } from '@/hooks/useDataUsage';
 
 export default function UsageScreen() {
   const theme = useTheme();
-  const { isDark, toggle } = useThemeMode();
+  const { isDark } = useThemeMode();
   const insets = useSafeAreaInsets();
   const [periodIndex, setPeriodIndex] = useState(1);
 
@@ -86,18 +87,7 @@ export default function UsageScreen() {
             <Ionicons name="analytics" size={18} color="rgba(255,255,255,0.5)" />
             <Text style={styles.heroLabel}>Total Consumption</Text>
           </View>
-          <Pressable
-            onPress={toggle}
-            style={({ pressed }) => [
-              styles.themeToggle,
-              pressed && { transform: [{ scale: 0.9 }] },
-            ]}>
-            <Ionicons
-              name={isDark ? 'sunny' : 'moon'}
-              size={18}
-              color="#FFFFFF"
-            />
-          </Pressable>
+          <ThemeToggle variant="hero" />
         </View>
 
         <View style={styles.heroValueRow}>
@@ -328,16 +318,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
-  themeToggle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   heroLabel: {
     fontSize: 13,
     fontFamily: Fonts.semiBold,

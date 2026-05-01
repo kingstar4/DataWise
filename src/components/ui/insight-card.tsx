@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, type ViewProps } from 'react-native';
 
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
@@ -21,8 +21,9 @@ export type InsightCardProps = ViewProps & {
 /**
  * Premium insight card with gradient accent strip and icon.
  * Used for Quick Insights on Home, Optimizer Insights on Usage Details, etc.
+ * Wrapped in React.memo — only re-renders when title/message/accent changes.
  */
-export function InsightCard({
+export const InsightCard = React.memo(function InsightCard({
   title,
   message,
   icon,
@@ -34,38 +35,45 @@ export function InsightCard({
   const { isDark } = useThemeMode();
   const accent = accentColor ?? theme.secondary;
 
+  const containerStyle = useMemo(
+    () => [
+      styles.container,
+      {
+        backgroundColor: isDark ? 'rgba(18, 25, 51, 0.8)' : '#FFFFFF',
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(79, 89, 158, 0.2)' : accent + '30',
+      },
+      !isDark && styles.lightShadow,
+      style,
+    ],
+    [isDark, accent, style],
+  );
+
+  const gradientColors = useMemo(
+    () => [accent, isDark ? '#7C3AED' : '#4338CA'] as const,
+    [accent, isDark],
+  );
+
+  const iconCircleStyle = useMemo(
+    () => [styles.iconCircle, { backgroundColor: accent + '20' }],
+    [accent],
+  );
+
+  const iconName = title.includes('Quick') ? 'flash' : 'bulb';
+
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: isDark
-            ? 'rgba(18, 25, 51, 0.8)'
-            : '#FFFFFF',
-          borderWidth: 1,
-          borderColor: isDark
-            ? 'rgba(79, 89, 158, 0.2)'
-            : accent + '30',
-        },
-        !isDark && styles.lightShadow,
-        style,
-      ]}
-      {...props}>
+    <View style={containerStyle} {...props}>
       {/* Gradient accent strip */}
       <LinearGradient
-        colors={[accent, isDark ? '#7C3AED' : '#4338CA']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        colors={gradientColors}
+        start={GRADIENT_START}
+        end={GRADIENT_END}
         style={styles.accentStrip}
       />
       <View style={styles.contentWrap}>
         <View style={styles.header}>
-          <View style={[styles.iconCircle, { backgroundColor: accent + '20' }]}>
-            <Ionicons
-              name={title.includes('Quick') ? 'flash' : 'bulb'}
-              size={16}
-              color={accent}
-            />
+          <View style={iconCircleStyle}>
+            <Ionicons name={iconName} size={16} color={accent} />
           </View>
           <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
         </View>
@@ -73,7 +81,10 @@ export function InsightCard({
       </View>
     </View>
   );
-}
+});
+
+const GRADIENT_START = { x: 0, y: 0 } as const;
+const GRADIENT_END = { x: 0, y: 1 } as const;
 
 const styles = StyleSheet.create({
   container: {

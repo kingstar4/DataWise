@@ -7,7 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { palette } from '@/theme/colors';
 
-export default function AppTabs() {
+export default function TabsLayout() {
   const theme = useTheme();
   const { isDark } = useThemeMode();
   const insets = useSafeAreaInsets();
@@ -50,6 +50,15 @@ export default function AppTabs() {
           title: 'Usage',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="wallet"
+        options={{
+          title: 'Wallet',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="wallet" size={size} color={color} />
           ),
         }}
       />

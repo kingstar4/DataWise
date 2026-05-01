@@ -17,7 +17,8 @@
         "monochromeImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.thehubx.DataWise"
+      "package": "com.thehubx.DataWise",
+      "permissions": ["android.permission.PACKAGE_USAGE_STATS"]
     },
     "web": {
       "output": "static",

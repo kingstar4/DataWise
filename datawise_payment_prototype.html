@@ -1,0 +1,408 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.wrap{display:flex;flex-direction:column;align-items:center;padding:1.5rem 0 2rem;background:transparent}
+.phone{width:340px;background:#0B1020;border-radius:36px;border:2px solid #1e2a45;overflow:hidden;position:relative}
+.screen{display:none;flex-direction:column;min-height:680px}
+.screen.active{display:flex}
+.status-bar{background:#0B1020;padding:14px 20px 8px;display:flex;justify-content:space-between;align-items:center}
+.status-bar span{color:#a0aec0;font-size:11px;font-weight:500}
+.hero{background:#131d35;padding:20px 20px 24px}
+.hero-label{font-size:11px;color:#6b7a99;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.hero-val{font-size:28px;font-weight:700;color:#fff;font-family:monospace,sans-serif}
+.hero-sub{font-size:12px;color:#6b7a99;margin-top:4px}
+.badge{display:inline-flex;align-items:center;gap:4px;background:#1a2540;border:1px solid #2a3a5c;border-radius:20px;padding:4px 10px;margin-top:10px}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:#10B981}
+.badge span{font-size:11px;color:#8ba3cc}
+.section-title{font-size:12px;color:#6b7a99;text-transform:uppercase;letter-spacing:.07em;padding:16px 20px 8px}
+.plan-list{padding:0 16px;display:flex;flex-direction:column;gap:8px}
+.plan-card{background:#131d35;border:1.5px solid #1e2a45;border-radius:14px;padding:14px 16px;cursor:pointer;transition:border-color .15s,background .15s;position:relative}
+.plan-card.selected{border-color:#6366F1;background:#161e38}
+.plan-card.recommended::after{content:'Best value';position:absolute;top:-1px;right:12px;background:#6366F1;color:#fff;font-size:10px;font-weight:500;padding:2px 8px;border-radius:0 0 6px 6px}
+.plan-top{display:flex;justify-content:space-between;align-items:flex-start}
+.plan-name{font-size:14px;font-weight:600;color:#e2e8f0}
+.plan-price{font-size:16px;font-weight:700;color:#6366F1;font-family:monospace,sans-serif}
+.plan-meta{display:flex;gap:12px;margin-top:6px}
+.plan-tag{font-size:11px;color:#6b7a99;background:#0d1626;border-radius:6px;padding:2px 7px}
+.plan-tag.green{color:#10B981;background:#0a1f18}
+.radio{width:16px;height:16px;border-radius:50%;border:1.5px solid #2a3a5c;margin-top:1px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.radio.on{border-color:#6366F1;background:#6366F1}
+.radio.on::after{content:'';width:5px;height:5px;border-radius:50%;background:#fff}
+.insight-card{margin:12px 16px 0;background:#0d1626;border:1px solid #1e2a45;border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.insight-icon{width:28px;height:28px;border-radius:8px;background:#1a2045;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.insight-icon svg{width:14px;height:14px}
+.insight-text{font-size:12px;color:#8ba3cc;line-height:1.5}
+.insight-text strong{color:#c7d4f0;font-weight:500}
+.btn-primary{margin:16px 16px 0;background:#6366F1;border:none;color:#fff;font-size:15px;font-weight:600;padding:15px;border-radius:14px;cursor:pointer;width:calc(100% - 32px);transition:opacity .15s}
+.btn-primary:active{opacity:.85}
+.btn-ghost{margin:10px 16px 16px;background:transparent;border:1.5px solid #1e2a45;color:#8ba3cc;font-size:14px;font-weight:500;padding:13px;border-radius:14px;cursor:pointer;width:calc(100% - 32px);transition:background .15s}
+.btn-ghost:hover{background:#131d35}
+.nav-back{display:flex;align-items:center;gap:8px;padding:12px 20px;cursor:pointer}
+.nav-back svg{width:18px;height:18px;stroke:#8ba3cc;stroke-width:2;fill:none}
+.nav-back span{font-size:14px;color:#8ba3cc}
+.pg-title{font-size:18px;font-weight:700;color:#e2e8f0;padding:4px 20px 16px}
+.wallet-hero{background:#131d35;margin:0 16px;border-radius:16px;padding:20px;border:1px solid #1e2a45}
+.wallet-bal-label{font-size:11px;color:#6b7a99;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.wallet-bal{font-size:30px;font-weight:700;color:#10B981;font-family:monospace,sans-serif}
+.wallet-bal-sub{font-size:12px;color:#6b7a99;margin-top:3px}
+.amount-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px;margin-top:12px}
+.amount-btn{background:#131d35;border:1.5px solid #1e2a45;border-radius:12px;padding:13px;text-align:center;cursor:pointer;transition:border-color .15s}
+.amount-btn span{display:block;font-size:15px;font-weight:600;color:#e2e8f0;font-family:monospace,sans-serif}
+.amount-btn small{font-size:11px;color:#6b7a99;margin-top:2px;display:block}
+.amount-btn.selected{border-color:#6366F1;background:#161e38}
+.custom-input-wrap{padding:0 16px;margin-top:8px}
+.custom-input-wrap input{width:100%;background:#131d35;border:1.5px solid #1e2a45;border-radius:12px;padding:13px 16px;font-size:15px;color:#e2e8f0;font-family:monospace,sans-serif;outline:none}
+.custom-input-wrap input:focus{border-color:#6366F1}
+.custom-input-wrap input::placeholder{color:#3a4a6a}
+.pay-method{margin:12px 16px 0;background:#131d35;border:1px solid #1e2a45;border-radius:12px;overflow:hidden}
+.pay-row{display:flex;align-items:center;gap:12px;padding:13px 14px;cursor:pointer;border-bottom:1px solid #1a2540}
+.pay-row:last-child{border-bottom:none}
+.pay-row.selected{background:#0d1626}
+.pay-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pay-label{flex:1}
+.pay-label strong{font-size:13px;color:#e2e8f0;font-weight:500;display:block}
+.pay-label span{font-size:11px;color:#6b7a99}
+.confirm-wrap{padding:0 16px;display:flex;flex-direction:column;gap:10px}
+.confirm-hero{background:#131d35;border:1px solid #1e2a45;border-radius:16px;padding:20px;text-align:center}
+.confirm-amount{font-size:36px;font-weight:700;color:#6366F1;font-family:monospace,sans-serif}
+.confirm-network{font-size:13px;color:#8ba3cc;margin-top:4px}
+.confirm-rows{background:#131d35;border:1px solid #1e2a45;border-radius:14px;overflow:hidden}
+.confirm-row{display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1a2540;align-items:center}
+.confirm-row:last-child{border-bottom:none}
+.confirm-row span:first-child{font-size:13px;color:#6b7a99}
+.confirm-row span:last-child{font-size:13px;color:#e2e8f0;font-weight:500}
+.confirm-row span.green{color:#10B981}
+.pin-dots{display:flex;justify-content:center;gap:14px;margin:20px 0 8px}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid #2a3a5c;transition:background .15s,border-color .15s}
+.pin-dot.filled{background:#6366F1;border-color:#6366F1}
+.pin-hint{text-align:center;font-size:12px;color:#6b7a99;margin-bottom:8px}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 16px;margin-top:8px}
+.numpad-btn{background:#131d35;border:1px solid #1e2a45;border-radius:12px;padding:14px;text-align:center;cursor:pointer;font-size:18px;font-weight:600;color:#e2e8f0;transition:background .1s}
+.numpad-btn:active{background:#1e2a45}
+.numpad-btn.del{font-size:14px;color:#8ba3cc}
+.numpad-btn.empty{border:none;background:transparent;cursor:default}
+.success-screen{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px 20px;min-height:600px}
+.success-ring{width:72px;height:72px;border-radius:50%;background:#0a1f18;border:2px solid #10B981;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.success-ring svg{width:32px;height:32px;stroke:#10B981;stroke-width:2.5;fill:none}
+.success-title{font-size:20px;font-weight:700;color:#e2e8f0;margin-bottom:6px}
+.success-sub{font-size:13px;color:#6b7a99;text-align:center;line-height:1.5;margin-bottom:24px}
+.success-card{background:#131d35;border:1px solid #1e2a45;border-radius:16px;padding:18px;width:100%;margin-bottom:12px}
+.success-row{display:flex;justify-content:space-between;margin-bottom:10px}
+.success-row:last-child{margin-bottom:0;padding-top:10px;border-top:1px solid #1a2540}
+.success-row span:first-child{font-size:12px;color:#6b7a99}
+.success-row span:last-child{font-size:12px;color:#e2e8f0;font-weight:500}
+.success-row span.indigo{color:#818cf8}
+.next-refill{background:#0d1626;border:1px solid #1e2a45;border-radius:12px;padding:12px 14px;width:100%;display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.next-refill svg{width:16px;height:16px;stroke:#6366F1;stroke-width:2;fill:none;flex-shrink:0}
+.next-refill span{font-size:12px;color:#8ba3cc;line-height:1.4}
+.tx-list{padding:0 16px;display:flex;flex-direction:column;gap:8px}
+.tx-item{background:#131d35;border:1px solid #1e2a45;border-radius:12px;padding:13px 14px;display:flex;align-items:center;gap:12px;cursor:pointer}
+.tx-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tx-icon svg{width:16px;height:16px;stroke-width:2;fill:none}
+.tx-info{flex:1}
+.tx-info strong{font-size:13px;color:#e2e8f0;font-weight:500;display:block}
+.tx-info span{font-size:11px;color:#6b7a99}
+.tx-amount{text-align:right}
+.tx-amount strong{font-size:13px;font-weight:600;font-family:monospace,sans-serif;display:block}
+.tx-amount span{font-size:11px;color:#6b7a99}
+.tx-badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:500}
+.tx-badge.success{background:#0a1f18;color:#10B981}
+.tx-badge.pending{background:#1a1508;color:#F59E0B}
+.tx-badge.failed{background:#1f0a0a;color:#EC4899}
+.filter-row{display:flex;gap:6px;padding:0 16px 12px;overflow-x:auto}
+.filter-chip{background:#131d35;border:1px solid #1e2a45;border-radius:20px;padding:5px 12px;font-size:12px;color:#8ba3cc;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.filter-chip.active{border-color:#6366F1;color:#818cf8;background:#161e38}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px 12px}
+.summary-cell{background:#131d35;border:1px solid #1e2a45;border-radius:12px;padding:12px}
+.summary-cell .s-label{font-size:11px;color:#6b7a99;margin-bottom:4px}
+.summary-cell .s-val{font-size:16px;font-weight:700;font-family:monospace,sans-serif}
+.tab-bar{display:flex;background:#0d1626;border-top:1px solid #1e2a45;padding:10px 0 14px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+.tab svg{width:18px;height:18px;stroke-width:1.8;fill:none}
+.tab span{font-size:10px;color:#6b7a99}
+.tab.active svg{stroke:#6366F1}
+.tab.active span{color:#6366F1}
+.tab svg{stroke:#4a5a7a}
+.nav-dots{display:flex;justify-content:center;gap:6px;padding:10px 0 4px}
+.nav-dot{width:6px;height:6px;border-radius:50%;background:#1e2a45;cursor:pointer;transition:background .2s}
+.nav-dot.active{background:#6366F1;width:18px;border-radius:3px}
+.screen-label{text-align:center;font-size:11px;color:#6b7a99;padding-bottom:8px;letter-spacing:.05em}
+.controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:1rem}
+.ctrl-btn{background:transparent;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:6px 14px;font-size:12px;color:var(--color-text-secondary);cursor:pointer;transition:background .15s}
+.ctrl-btn:hover{background:var(--color-background-secondary)}
+.ctrl-btn.active-ctrl{border-color:#6366F1;color:#6366F1}
+</style>
+
+<h2 class="sr-only">DataWise payment UI prototype — four interactive screens: plan picker, wallet funding, purchase confirmation, and transaction history</h2>
+
+<div class="wrap">
+<div class="phone">
+
+<div id="s1" class="screen active">
+  <div class="status-bar"><span>9:41</span><span>MTN  ●●●●  🔋</span></div>
+  <div class="hero">
+    <div class="hero-label">Projected this month</div>
+    <div class="hero-val">8.2 GB</div>
+    <div class="hero-sub">Based on your last 7 days</div>
+    <div class="badge"><div class="badge-dot"></div><span>MTN detected</span></div>
+  </div>
+  <div class="section-title">Recommended plans</div>
+  <div class="plan-list">
+    <div class="plan-card" id="p1" onclick="selectPlan(1)">
+      <div class="plan-top"><div><div class="plan-name">10 GB monthly</div><div class="plan-meta"><span class="plan-tag">30 days</span><span class="plan-tag green">covers your usage</span></div></div><div style="display:flex;gap:8px;align-items:flex-start"><div class="plan-price">₦3,500</div><div class="radio" id="r1"></div></div></div>
+    </div>
+    <div class="plan-card recommended" id="p2" onclick="selectPlan(2)">
+      <div class="plan-top"><div><div class="plan-name">15 GB monthly</div><div class="plan-meta"><span class="plan-tag">30 days</span><span class="plan-tag green">saves ₦800 vs 10 GB×1.5</span></div></div><div style="display:flex;gap:8px;align-items:flex-start"><div class="plan-price">₦4,800</div><div class="radio" id="r2"></div></div></div>
+    </div>
+    <div class="plan-card" id="p3" onclick="selectPlan(3)">
+      <div class="plan-top"><div><div class="plan-name">5 GB monthly</div><div class="plan-meta"><span class="plan-tag">30 days</span><span class="plan-tag" style="color:#EC4899;background:#1f0a12">may run short</span></div></div><div style="display:flex;gap:8px;align-items:flex-start"><div class="plan-price">₦2,000</div><div class="radio" id="r3"></div></div></div>
+    </div>
+  </div>
+  <div class="insight-card">
+    <div class="insight-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+    <div class="insight-text"><strong>Why 15 GB?</strong> Your background apps used 3.1 GB this week alone. The 15 GB plan gives you a 6.8 GB buffer at a better per-GB rate.</div>
+  </div>
+  <button class="btn-primary" onclick="goTo(2)" id="cta1" style="opacity:.4;pointer-events:none">Select a plan to continue</button>
+  <button class="btn-ghost" onclick="goTo(4)">View transaction history</button>
+</div>
+
+<div id="s2" class="screen">
+  <div class="status-bar"><span>9:41</span><span>MTN  ●●●●  🔋</span></div>
+  <div class="nav-back" onclick="goTo(1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span>Back</span></div>
+  <div class="pg-title">Fund wallet</div>
+  <div class="wallet-hero">
+    <div class="wallet-bal-label">Current balance</div>
+    <div class="wallet-bal" id="walletBal">₦1,200</div>
+    <div class="wallet-bal-sub" id="walletSub">Need ₦3,600 more for 15 GB plan</div>
+  </div>
+  <div class="section-title">Top up amount</div>
+  <div class="amount-grid">
+    <div class="amount-btn" id="a1" onclick="selectAmount(1000)"><span>₦1,000</span><small>quick add</small></div>
+    <div class="amount-btn" id="a2" onclick="selectAmount(2000)"><span>₦2,000</span><small>quick add</small></div>
+    <div class="amount-btn" id="a3" onclick="selectAmount(3000)"><span>₦3,000</span><small>covers 10 GB</small></div>
+    <div class="amount-btn selected" id="a4" onclick="selectAmount(5000)"><span>₦5,000</span><small>covers 15 GB + buffer</small></div>
+  </div>
+  <div class="custom-input-wrap" style="margin-top:8px"><input type="number" placeholder="Or enter custom amount (₦)" id="customAmt" oninput="customAmount(this.value)"/></div>
+  <div class="section-title">Pay via</div>
+  <div class="pay-method">
+    <div class="pay-row selected" id="pm1" onclick="selectPayMethod(1)">
+      <div class="pay-icon" style="background:#1a1040"><svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+      <div class="pay-label"><strong>Paystack</strong><span>Card or bank transfer</span></div>
+      <div class="radio on" id="pm-r1"></div>
+    </div>
+    <div class="pay-row" id="pm2" onclick="selectPayMethod(2)">
+      <div class="pay-icon" style="background:#0a1f18"><svg viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/></svg></div>
+      <div class="pay-label"><strong>Bank transfer</strong><span>Direct to DataWise account</span></div>
+      <div class="radio" id="pm-r2"></div>
+    </div>
+  </div>
+  <button class="btn-primary" onclick="goTo(3)" style="margin-top:16px">Fund ₦5,000 and buy plan</button>
+  <button class="btn-ghost" onclick="goTo(1)">Cancel</button>
+</div>
+
+<div id="s3" class="screen">
+  <div class="status-bar"><span>9:41</span><span>MTN  ●●●●  🔋</span></div>
+  <div class="nav-back" onclick="goTo(2)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span>Back</span></div>
+  <div class="pg-title">Confirm purchase</div>
+  <div class="confirm-wrap">
+    <div class="confirm-hero">
+      <div style="font-size:12px;color:#6b7a99;margin-bottom:8px">You're buying</div>
+      <div class="confirm-amount" id="confirmPlan">15 GB</div>
+      <div class="confirm-network">MTN monthly plan</div>
+      <div style="margin-top:12px;display:flex;justify-content:center;gap:8px"><span class="tx-badge success">Covers your usage</span><span style="background:#1a1040;color:#818cf8;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:500">Best value</span></div>
+    </div>
+    <div class="confirm-rows">
+      <div class="confirm-row"><span>Plan cost</span><span id="planCostRow">₦4,800</span></div>
+      <div class="confirm-row"><span>Wallet balance</span><span>₦6,200</span></div>
+      <div class="confirm-row"><span>Deducted from wallet</span><span id="deductRow">₦4,800</span></div>
+      <div class="confirm-row"><span>Remaining balance</span><span class="green" id="remainRow">₦1,400</span></div>
+      <div class="confirm-row"><span>Delivery</span><span class="green">Instant</span></div>
+    </div>
+    <div style="background:#131d35;border:1px solid #1e2a45;border-radius:14px;padding:14px 16px">
+      <div style="font-size:12px;color:#8ba3cc;margin-bottom:10px;font-weight:500">Confirm with PIN</div>
+      <div class="pin-dots"><div class="pin-dot" id="d1"></div><div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div><div class="pin-dot" id="d4"></div></div>
+      <div class="pin-hint" id="pinHint">Enter your 4-digit PIN</div>
+      <div class="numpad">
+        <div class="numpad-btn" onclick="enterPin(1)">1</div><div class="numpad-btn" onclick="enterPin(2)">2</div><div class="numpad-btn" onclick="enterPin(3)">3</div>
+        <div class="numpad-btn" onclick="enterPin(4)">4</div><div class="numpad-btn" onclick="enterPin(5)">5</div><div class="numpad-btn" onclick="enterPin(6)">6</div>
+        <div class="numpad-btn" onclick="enterPin(7)">7</div><div class="numpad-btn" onclick="enterPin(8)">8</div><div class="numpad-btn" onclick="enterPin(9)">9</div>
+        <div class="numpad-btn empty"></div><div class="numpad-btn" onclick="enterPin(0)">0</div><div class="numpad-btn del" onclick="delPin()">⌫</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="s3b" class="screen">
+  <div class="status-bar"><span>9:41</span><span>MTN  ●●●●  🔋</span></div>
+  <div class="success-screen">
+    <div class="success-ring"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <div class="success-title">Data activated!</div>
+    <div class="success-sub">Your 15 GB MTN plan is live.<br>DataWise will track your usage automatically.</div>
+    <div class="success-card">
+      <div class="success-row"><span>Plan</span><span>15 GB MTN monthly</span></div>
+      <div class="success-row"><span>Amount paid</span><span>₦4,800</span></div>
+      <div class="success-row"><span>Transaction ID</span><span style="font-family:monospace;font-size:11px;color:#6b7a99">DW-20240501-7741</span></div>
+      <div class="success-row"><span>Expires</span><span>May 31, 2026</span></div>
+      <div class="success-row"><span>Remaining balance</span><span class="indigo">₦1,400</span></div>
+    </div>
+    <div class="next-refill">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>Based on your usage pattern, you'll likely need your next top-up around <strong style="color:#c7d4f0">May 22</strong></span>
+    </div>
+    <button class="btn-primary" style="margin:0;width:100%" onclick="goTo(4)">View transaction history</button>
+    <button class="btn-ghost" style="width:100%;margin:8px 0 0" onclick="goTo(1)">Back to dashboard</button>
+  </div>
+</div>
+
+<div id="s4" class="screen">
+  <div class="status-bar"><span>9:41</span><span>MTN  ●●●●  🔋</span></div>
+  <div style="padding:16px 20px 8px;display:flex;justify-content:space-between;align-items:center"><div class="pg-title" style="padding:0">Transactions</div><div style="font-size:12px;color:#6366F1;cursor:pointer">Export</div></div>
+  <div class="summary-grid">
+    <div class="summary-cell"><div class="s-label">Total spent</div><div class="s-val" style="color:#6366F1">₦16,300</div></div>
+    <div class="summary-cell"><div class="s-label">Purchases</div><div class="s-val" style="color:#e2e8f0">7</div></div>
+    <div class="summary-cell"><div class="s-label">Wallet balance</div><div class="s-val" style="color:#10B981">₦1,400</div></div>
+    <div class="summary-cell"><div class="s-label">Saved vs ad-hoc</div><div class="s-val" style="color:#10B981">₦2,100</div></div>
+  </div>
+  <div class="filter-row">
+    <div class="filter-chip active" onclick="setFilter(this,'all')">All</div>
+    <div class="filter-chip" onclick="setFilter(this,'data')">Data</div>
+    <div class="filter-chip" onclick="setFilter(this,'wallet')">Wallet top-up</div>
+    <div class="filter-chip" onclick="setFilter(this,'failed')">Failed</div>
+  </div>
+  <div class="tx-list">
+    <div class="tx-item">
+      <div class="tx-icon" style="background:#0a1f18"><svg viewBox="0 0 24 24" stroke="#10B981"><path d="M1 6l11 6 11-6"/><path d="M1 12l11 6 11-6"/></svg></div>
+      <div class="tx-info"><strong>15 GB MTN monthly</strong><span>Today, 9:41 AM · <span class="tx-badge success">Success</span></span></div>
+      <div class="tx-amount"><strong style="color:#e2e8f0">₦4,800</strong><span>data</span></div>
+    </div>
+    <div class="tx-item">
+      <div class="tx-icon" style="background:#1a1040"><svg viewBox="0 0 24 24" stroke="#6366F1"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/></svg></div>
+      <div class="tx-info"><strong>Wallet top-up</strong><span>Today, 9:38 AM · <span class="tx-badge success">Success</span></span></div>
+      <div class="tx-amount"><strong style="color:#10B981">+₦5,000</strong><span>funding</span></div>
+    </div>
+    <div class="tx-item">
+      <div class="tx-icon" style="background:#0a1f18"><svg viewBox="0 0 24 24" stroke="#10B981"><path d="M1 6l11 6 11-6"/><path d="M1 12l11 6 11-6"/></svg></div>
+      <div class="tx-info"><strong>10 GB MTN monthly</strong><span>Apr 1 · <span class="tx-badge success">Success</span></span></div>
+      <div class="tx-amount"><strong style="color:#e2e8f0">₦3,500</strong><span>data</span></div>
+    </div>
+    <div class="tx-item">
+      <div class="tx-icon" style="background:#1f0a12"><svg viewBox="0 0 24 24" stroke="#EC4899"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+      <div class="tx-info"><strong>5 GB Airtel</strong><span>Mar 22 · <span class="tx-badge failed">Failed</span></span></div>
+      <div class="tx-amount"><strong style="color:#EC4899">₦2,000</strong><span>refunded</span></div>
+    </div>
+    <div class="tx-item">
+      <div class="tx-icon" style="background:#1a1508"><svg viewBox="0 0 24 24" stroke="#F59E0B"><path d="M1 6l11 6 11-6"/><path d="M1 12l11 6 11-6"/></svg></div>
+      <div class="tx-info"><strong>3 GB Glo weekly</strong><span>Mar 15 · <span class="tx-badge pending">Pending</span></span></div>
+      <div class="tx-amount"><strong style="color:#e2e8f0">₦1,200</strong><span>data</span></div>
+    </div>
+  </div>
+  <div style="height:16px"></div>
+  <div class="tab-bar">
+    <div class="tab" onclick="goTo(1)"><svg viewBox="0 0 24 24" stroke="#4a5a7a"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span>Home</span></div>
+    <div class="tab" onclick="goTo(1)"><svg viewBox="0 0 24 24" stroke="#4a5a7a"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Usage</span></div>
+    <div class="tab active" onclick="goTo(4)"><svg viewBox="0 0 24 24" stroke="#6366F1"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/></svg><span>Wallet</span></div>
+    <div class="tab" onclick="goTo(1)"><svg viewBox="0 0 24 24" stroke="#4a5a7a"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg><span>Profile</span></div>
+  </div>
+</div>
+
+</div>
+
+<div class="nav-dots" id="navDots">
+  <div class="nav-dot active" onclick="goTo(1)"></div>
+  <div class="nav-dot" onclick="goTo(2)"></div>
+  <div class="nav-dot" onclick="goTo(3)"></div>
+  <div class="nav-dot" onclick="goTo(4)"></div>
+</div>
+<div class="screen-label" id="screenLabel">Screen 1 of 4 — Plan picker</div>
+<div class="controls">
+  <button class="ctrl-btn active-ctrl" onclick="goTo(1)">Plan picker</button>
+  <button class="ctrl-btn" onclick="goTo(2)">Wallet funding</button>
+  <button class="ctrl-btn" onclick="goTo(3)">Confirm + PIN</button>
+  <button class="ctrl-btn" onclick="goTo(4)">History</button>
+</div>
+</div>
+
+<script>
+var currentScreen=1,pinCount=0,selectedPlan=0,selectedAmount=5000,selectedPM=1;
+var labels=['Plan picker','Wallet funding','Confirm + PIN','Transaction history'];
+function goTo(n){
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
+  var id=n===3?'s3':n===4?'s4':'s'+n;
+  if(n===10){id='s3b';}
+  document.getElementById(id).classList.add('active');
+  currentScreen=n;
+  document.querySelectorAll('.nav-dot').forEach(function(d,i){d.classList.toggle('active',i===n-1)});
+  document.querySelectorAll('.ctrl-btn').forEach(function(b,i){b.classList.toggle('active-ctrl',i===n-1)});
+  var idx=n<=4?n-1:2;
+  document.getElementById('screenLabel').textContent='Screen '+(idx+1)+' of 4 — '+labels[idx];
+  pinCount=0;
+  for(var i=1;i<=4;i++){var d=document.getElementById('d'+i);if(d)d.classList.remove('filled');}
+  var ph=document.getElementById('pinHint');if(ph)ph.textContent='Enter your 4-digit PIN';
+}
+function selectPlan(n){
+  selectedPlan=n;
+  [1,2,3].forEach(function(i){
+    document.getElementById('p'+i).classList.toggle('selected',i===n);
+    var r=document.getElementById('r'+i);
+    r.classList.toggle('on',i===n);
+    if(i===n){r.style.borderColor='#6366F1';r.style.background='#6366F1';}else{r.style.borderColor='';r.style.background='';}
+  });
+  var cta=document.getElementById('cta1');
+  cta.style.opacity='1';cta.style.pointerEvents='auto';
+  var plans=[null,{name:'10 GB',price:'₦3,500'},{name:'15 GB',price:'₦4,800'},{name:'5 GB',price:'₦2,000'}];
+  var p=plans[n];
+  cta.textContent='Buy '+p.name+' for '+p.price;
+  document.getElementById('confirmPlan').textContent=p.name;
+  document.getElementById('planCostRow').textContent=p.price;
+  document.getElementById('deductRow').textContent=p.price;
+}
+function selectAmount(v){
+  selectedAmount=v;
+  ['a1','a2','a3','a4'].forEach(function(id,i){
+    document.getElementById(id).classList.toggle('selected',[1000,2000,3000,5000][i]===v);
+  });
+  document.getElementById('customAmt').value='';
+  updateWalletSub(v);
+}
+function customAmount(v){
+  if(!v)return;
+  selectedAmount=parseInt(v)||0;
+  ['a1','a2','a3','a4'].forEach(function(id){document.getElementById(id).classList.remove('selected')});
+  updateWalletSub(selectedAmount);
+}
+function updateWalletSub(v){
+  var sub=document.getElementById('walletSub');
+  var newBal=1200+v;
+  if(newBal>=4800){sub.textContent='New balance: ₦'+newBal.toLocaleString()+' — ready to buy';}
+  else{sub.textContent='New balance: ₦'+newBal.toLocaleString()+' — need ₦'+(4800-newBal).toLocaleString()+' more';}
+}
+function selectPayMethod(n){
+  selectedPM=n;
+  [1,2].forEach(function(i){
+    document.getElementById('pm'+i).classList.toggle('selected',i===n);
+    var r=document.getElementById('pm-r'+i);
+    r.classList.toggle('on',i===n);
+  });
+}
+function enterPin(d){
+  if(pinCount>=4)return;
+  pinCount++;
+  document.getElementById('d'+pinCount).classList.add('filled');
+  if(pinCount===4){
+    var h=document.getElementById('pinHint');
+    h.textContent='Verifying...';
+    h.style.color='#6366F1';
+    setTimeout(function(){goTo(10);},700);
+  }
+}
+function delPin(){
+  if(pinCount===0)return;
+  document.getElementById('d'+pinCount).classList.remove('filled');
+  pinCount--;
+}
+function setFilter(el,f){
+  document.querySelectorAll('.filter-chip').forEach(function(c){c.classList.remove('active')});
+  el.classList.add('active');
+}
+selectPlan(2);
+</script>

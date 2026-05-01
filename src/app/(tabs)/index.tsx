@@ -13,6 +13,7 @@ import {
   SegmentedControl,
   SkeletonHeroValue,
   SkeletonAppList,
+  ThemeToggle,
 } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
@@ -35,7 +36,7 @@ const PERIOD_LABELS = ['today', 'this week', 'this month'];
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const { isDark, toggle } = useThemeMode();
+  const { isDark } = useThemeMode();
   const insets = useSafeAreaInsets();
   const [periodIndex, setPeriodIndex] = useState(1);
   const [showAllDrainers, setShowAllDrainers] = useState(false);
@@ -145,19 +146,7 @@ export default function HomeScreen() {
             <Text style={styles.greetingText}>{greeting}</Text>
             <Text style={styles.appName}>DataWise</Text>
           </View>
-          {/* Theme Toggle Button */}
-          <Pressable
-            onPress={toggle}
-            style={({ pressed }) => [
-              styles.themeToggle,
-              pressed && { transform: [{ scale: 0.9 }] },
-            ]}>
-            <Ionicons
-              name={isDark ? 'sunny' : 'moon'}
-              size={20}
-              color="#FFFFFF"
-            />
-          </Pressable>
+          <ThemeToggle variant="hero" size={20} />
         </View>
 
         <View style={styles.heroDataBlock}>
@@ -321,16 +310,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.extraBold,
     letterSpacing: -0.5,
   },
-  themeToggle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   heroDataBlock: {
     marginBottom: Spacing.two,
     minHeight: 72,

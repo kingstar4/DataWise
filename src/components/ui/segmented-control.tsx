@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewProps } from 'react-native';
 
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
@@ -16,8 +16,9 @@ export type SegmentedControlProps = ViewProps & {
 /**
  * Premium segmented control with pill-style active indicator.
  * Used for Today/Week/Month selectors.
+ * Wrapped in React.memo — only re-renders when segments/selectedIndex change.
  */
-export function SegmentedControl({
+export const SegmentedControl = React.memo(function SegmentedControl({
   segments,
   selectedIndex,
   onSelect,
@@ -26,58 +27,88 @@ export function SegmentedControl({
 }: SegmentedControlProps) {
   const { isDark } = useThemeMode();
 
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: isDark
-            ? 'rgba(255,255,255,0.06)'
-            : 'rgba(0,0,0,0.08)',
-        },
-        style,
-      ]}
-      {...props}>
-      {segments.map((segment, index) => {
-        const isSelected = index === selectedIndex;
-        return (
-          <Pressable
-            key={segment}
-            onPress={() => onSelect(index)}
-            style={[
-              styles.segment,
-              isSelected && [
-                styles.selectedSegment,
-                {
-                  backgroundColor: isDark
-                    ? 'rgba(79, 89, 158, 0.5)'
-                    : 'rgba(255,255,255,0.95)',
-                  // elevation: 4,
+  const containerStyle = useMemo(
+    () => [
+      styles.container,
+      {
+        backgroundColor: isDark
+          ? 'rgba(255,255,255,0.06)'
+          : 'rgba(0,0,0,0.08)',
+      },
+      style,
+    ],
+    [isDark, style],
+  );
 
-                },
-              ],
-            ]}>
-            <Text
-              style={[
-                styles.label,
-                {
-                  color: isSelected
-                    ? '#FFFFFF'
-                    : isDark
-                      ? 'rgba(255,255,255,0.5)'
-                      : 'rgba(255,255,255,0.7)',
-                },
-                isSelected && !isDark && { color: '#1C2765' },
-                isSelected && styles.selectedLabel,
-              ]}>
-              {segment}
-            </Text>
-          </Pressable>
-        );
-      })}
+  return (
+    <View style={containerStyle} {...props}>
+      {segments.map((segment, index) => (
+        <SegmentButton
+          key={segment}
+          label={segment}
+          index={index}
+          isSelected={index === selectedIndex}
+          isDark={isDark}
+          onSelect={onSelect}
+        />
+      ))}
     </View>
   );
-}
+});
+
+/** Individual segment button — memoized to avoid re-rendering unselected segments */
+const SegmentButton = React.memo(function SegmentButton({
+  label,
+  index,
+  isSelected,
+  isDark,
+  onSelect,
+}: {
+  label: string;
+  index: number;
+  isSelected: boolean;
+  isDark: boolean;
+  onSelect: (index: number) => void;
+}) {
+  const handlePress = useCallback(() => onSelect(index), [onSelect, index]);
+
+  const segmentStyle = useMemo(
+    () => [
+      styles.segment,
+      isSelected && [
+        styles.selectedSegment,
+        {
+          backgroundColor: isDark
+            ? 'rgba(79, 89, 158, 0.5)'
+            : 'rgba(255,255,255,0.95)',
+        },
+      ],
+    ],
+    [isSelected, isDark],
+  );
+
+  const textStyle = useMemo(
+    () => [
+      styles.label,
+      {
+        color: isSelected
+          ? '#FFFFFF'
+          : isDark
+            ? 'rgba(255,255,255,0.5)'
+            : 'rgba(255,255,255,0.7)',
+      },
+      isSelected && !isDark && { color: '#1C2765' },
+      isSelected && styles.selectedLabel,
+    ],
+    [isSelected, isDark],
+  );
+
+  return (
+    <Pressable onPress={handlePress} style={segmentStyle}>
+      <Text style={textStyle}>{label}</Text>
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -97,8 +128,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    // elevation: 4,
-
   },
   label: {
     fontSize: 13,
@@ -107,6 +136,5 @@ const styles = StyleSheet.create({
   selectedLabel: {
     fontFamily: Fonts.bold,
     letterSpacing: 0.3,
-    // elevation: 4,
   },
 });

@@ -12,6 +12,7 @@ import {
   InsightCard,
   SearchInput,
   SkeletonAppList,
+  ThemeToggle,
 } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
@@ -99,7 +100,7 @@ const APP_COLORS = [
 
 export default function BreakdownScreen() {
   const theme = useTheme();
-  const { isDark, toggle } = useThemeMode();
+  const { isDark } = useThemeMode();
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState(0);
@@ -177,18 +178,7 @@ export default function BreakdownScreen() {
               <Ionicons name="apps" size={16} color="rgba(255,255,255,0.6)" />
               <Text style={styles.heroCountText}>{apps.length} apps</Text>
             </View>
-            <Pressable
-              onPress={toggle}
-              style={({ pressed }) => [
-                styles.themeToggle,
-                pressed && { transform: [{ scale: 0.9 }] },
-              ]}>
-              <Ionicons
-                name={isDark ? 'sunny' : 'moon'}
-                size={18}
-                color="#FFFFFF"
-              />
-            </Pressable>
+            <ThemeToggle variant="hero" />
           </View>
         </View>
 
@@ -339,16 +329,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  themeToggle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   heroCountText: {
     fontSize: 12,
     fontFamily: Fonts.semiBold,

@@ -1,9 +1,9 @@
-import React from 'react';
-import { StyleSheet, View, type ViewProps } from 'react-native';
+import React, { useMemo } from 'react';
+import { StyleSheet, Text, View, type ViewProps } from 'react-native';
 
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { palette } from '@/theme/colors';
-import { useTheme } from '@/hooks/use-theme';
+import { useThemeMode } from '@/context/ThemeContext';
 
 export type BadgeVariant = 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'muted';
 
@@ -15,44 +15,42 @@ export type BadgeProps = ViewProps & {
 
 /**
  * Themed badge/chip component for status indicators, labels, etc.
+ * Wrapped in React.memo — only re-renders when variant/label change.
  */
-export function Badge({ style, variant = 'primary', label, children, ...props }: BadgeProps) {
-  const theme = useTheme();
-  const isDark = theme.background === '#0B1020';
+export const Badge = React.memo(function Badge({
+  style,
+  variant = 'primary',
+  label,
+  children,
+  ...props
+}: BadgeProps) {
+  const { isDark } = useThemeMode();
 
-  const variantStyles = getVariantStyles(variant, isDark);
+  const variantStyles = useMemo(
+    () => getVariantStyles(variant, isDark),
+    [variant, isDark],
+  );
+
+  const containerStyle = useMemo(
+    () => [styles.base, variantStyles.container, style],
+    [variantStyles.container, style],
+  );
 
   return (
-    <View style={[styles.base, variantStyles.container, style]} {...props}>
+    <View style={containerStyle} {...props}>
       {label ? (
-        <View>
-          <BadgeText color={variantStyles.textColor}>{label}</BadgeText>
-        </View>
+        <Text style={[styles.text, { color: variantStyles.textColor }]}>
+          {label}
+        </Text>
       ) : (
         children
       )}
     </View>
   );
-}
-
-function BadgeText({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <View>
-      <View>
-        {React.Children.map(children, (child) => {
-          if (typeof child === 'string') {
-            const Text = require('react-native').Text;
-            return <Text style={[styles.text, { color }]}>{child}</Text>;
-          }
-          return child;
-        })}
-      </View>
-    </View>
-  );
-}
+});
 
 function getVariantStyles(variant: BadgeVariant, isDark: boolean) {
-  const styles: Record<BadgeVariant, { container: object; textColor: string }> = {
+  const map: Record<BadgeVariant, { container: object; textColor: string }> = {
     primary: {
       container: { backgroundColor: isDark ? '#1A2250' : palette.navy },
       textColor: '#FFFFFF',
@@ -82,7 +80,7 @@ function getVariantStyles(variant: BadgeVariant, isDark: boolean) {
       textColor: isDark ? '#CBD5E1' : '#64748B',
     },
   };
-  return styles[variant];
+  return map[variant];
 }
 
 const styles = StyleSheet.create({

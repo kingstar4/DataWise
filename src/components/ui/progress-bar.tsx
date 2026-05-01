@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
 import { BorderRadius } from '@/constants/theme';
-import { palette } from '@/theme/colors';
 import { useTheme } from '@/hooks/use-theme';
+import { useThemeMode } from '@/context/ThemeContext';
 
 export type ProgressBarProps = ViewProps & {
   /** Progress value from 0 to 1 */
@@ -19,8 +19,9 @@ export type ProgressBarProps = ViewProps & {
 /**
  * Themed progress bar with rounded caps.
  * Used for data usage bars in app lists and detail screens.
+ * Wrapped in React.memo — only re-renders when props actually change.
  */
-export function ProgressBar({
+export const ProgressBar = React.memo(function ProgressBar({
   progress,
   color,
   height = 6,
@@ -29,34 +30,40 @@ export function ProgressBar({
   ...props
 }: ProgressBarProps) {
   const theme = useTheme();
-  const isDark = theme.background === '#0B1020';
+  const { isDark } = useThemeMode();
   const fillColor = color ?? theme.secondary;
   const trackColor = isDark ? '#25304F' : '#E2E8F0';
   const clampedProgress = Math.max(0, Math.min(1, progress));
 
+  const trackStyle = useMemo(
+    () => [
+      styles.track,
+      { height, borderRadius: height / 2 } as const,
+      showTrack && ({ backgroundColor: trackColor } as const),
+      style,
+    ],
+    [height, showTrack, trackColor, style],
+  );
+
+  const fillStyle = useMemo(
+    () => [
+      styles.fill,
+      {
+        width: `${clampedProgress * 100}%` as const,
+        height,
+        borderRadius: height / 2,
+        backgroundColor: fillColor,
+      },
+    ],
+    [clampedProgress, height, fillColor],
+  );
+
   return (
-    <View
-      style={[
-        styles.track,
-        { height, borderRadius: height / 2 },
-        showTrack && { backgroundColor: trackColor },
-        style,
-      ]}
-      {...props}>
-      <View
-        style={[
-          styles.fill,
-          {
-            width: `${clampedProgress * 100}%`,
-            height,
-            borderRadius: height / 2,
-            backgroundColor: fillColor,
-          },
-        ]}
-      />
+    <View style={trackStyle} {...props}>
+      <View style={fillStyle} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   track: {

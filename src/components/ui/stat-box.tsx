@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, type ViewProps } from 'react-native';
 
 import { BorderRadius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { useThemeMode } from '@/context/ThemeContext';
 
 export type StatBoxProps = ViewProps & {
   /** Label text (e.g. "TOTAL USED") */
@@ -16,26 +16,42 @@ export type StatBoxProps = ViewProps & {
 /**
  * Stat display box with label and large value.
  * Used in hero headers and summary sections.
+ * Wrapped in React.memo — only re-renders when label/value/color change.
  */
-export function StatBox({ label, value, valueColor, style, ...props }: StatBoxProps) {
-  const theme = useTheme();
-  const isDark = theme.background === '#0B1020';
+export const StatBox = React.memo(function StatBox({
+  label,
+  value,
+  valueColor,
+  style,
+  ...props
+}: StatBoxProps) {
+  const { isDark } = useThemeMode();
+
+  const containerStyle = useMemo(
+    () => [
+      styles.container,
+      {
+        backgroundColor: isDark
+          ? 'rgba(255,255,255,0.08)'
+          : 'rgba(255,255,255,0.15)',
+      },
+      style,
+    ],
+    [isDark, style],
+  );
+
+  const valueStyle = useMemo(
+    () => [styles.value, valueColor ? { color: valueColor } : null],
+    [valueColor],
+  );
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)' },
-        style,
-      ]}
-      {...props}>
+    <View style={containerStyle} {...props}>
       <Text style={styles.label}>{label}</Text>
-      <Text style={[styles.value, valueColor ? { color: valueColor } : null]}>
-        {value}
-      </Text>
+      <Text style={valueStyle}>{value}</Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

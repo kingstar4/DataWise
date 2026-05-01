@@ -8,6 +8,7 @@ export { FilterChip, type FilterChipProps } from './filter-chip';
 export { SearchInput, type SearchInputProps } from './search-input';
 export { SegmentedControl, type SegmentedControlProps } from './segmented-control';
 export { HeroHeader, type HeroHeaderProps } from './hero-header';
+export { ThemeToggle, type ThemeToggleProps } from './theme-toggle';
 export { BarChart, type BarChartProps, type BarChartDataItem } from './bar-chart';
 export {
   SkeletonBox,

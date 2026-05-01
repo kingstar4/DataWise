@@ -13,11 +13,11 @@ import {
 } from '@expo-google-fonts/space-grotesk';
 import { ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
 import UsagePermissionScreen from '@/components/permission-screen';
 import { ThemeProvider, useNavTheme } from '@/context/ThemeContext';
 import { useUsagePermission } from '@/hooks/useUsagePermission';
@@ -42,7 +42,14 @@ function AppContent() {
       <AnimatedSplashOverlay />
       {hasPermission ? (
         // ── Permission granted → show the main app ──
-        <AppTabs />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="plan-picker" />
+          <Stack.Screen name="wallet-fund" />
+          <Stack.Screen name="confirm-purchase" />
+          <Stack.Screen name="purchase-success" />
+          <Stack.Screen name="transactions" />
+        </Stack>
       ) : (
         // ── Permission not granted → show the permission screen ──
         <UsagePermissionScreen
@@ -54,7 +61,7 @@ function AppContent() {
   );
 }
 
-export default function TabLayout() {
+export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,

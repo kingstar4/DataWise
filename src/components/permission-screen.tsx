@@ -1,6 +1,7 @@
 import React from "react";
 import {
     Pressable,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -72,60 +73,85 @@ export default function UsagePermissionScreen({
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <StatusBar barStyle="light-content" backgroundColor={NAVY} />
 
-            {/* ──── Top Section ──── */}
-            <View style={styles.topSection}>
-                {/* Shield Icon */}
-                <View style={styles.iconContainer}>
-                    <View style={styles.iconCircle}>
-                        <Text style={styles.iconEmoji}>🛡️</Text>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: insets.bottom + 24 },
+                ]}
+                showsVerticalScrollIndicator={false}
+                bounces={false}>
+                {/* ──── Top Section ──── */}
+                <View style={styles.topSection}>
+                    {/* Shield Icon */}
+                    <View style={styles.iconContainer}>
+                        <View style={styles.iconCircle}>
+                            <Text style={styles.iconEmoji}>🛡️</Text>
+                        </View>
+                        {/* Subtle glow ring */}
+                        <View style={styles.glowRing} />
                     </View>
-                    {/* Subtle glow ring */}
-                    <View style={styles.glowRing} />
+
+                    {/* Title & Subtitle */}
+                    <Text style={styles.title}>{title}</Text>
+                    <Text style={styles.subtitle}>{subtitle}</Text>
                 </View>
 
-                {/* Title & Subtitle */}
-                <Text style={styles.title}>{title}</Text>
-                <Text style={styles.subtitle}>{subtitle}</Text>
-            </View>
+                {/* ──── Feature Cards ──── */}
+                <View style={styles.featuresSection}>
+                    {FEATURES.map((feature) => (
+                        <View key={feature.title} style={styles.featureCard}>
+                            <View style={styles.featureIconWrapper}>
+                                <Text style={styles.featureIcon}>{feature.icon}</Text>
+                            </View>
+                            <View style={styles.featureTextWrapper}>
+                                <Text style={styles.featureTitle}>
+                                    {feature.title}
+                                </Text>
+                                <Text style={styles.featureDescription}>
+                                    {feature.description}
+                                </Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
 
-            {/* ──── Feature Cards ──── */}
-            <View style={styles.featuresSection}>
-                {FEATURES.map((feature) => (
-                    <View key={feature.title} style={styles.featureCard}>
-                        <View style={styles.featureIconWrapper}>
-                            <Text style={styles.featureIcon}>{feature.icon}</Text>
-                        </View>
-                        <View style={styles.featureTextWrapper}>
-                            <Text style={styles.featureTitle}>
-                                {feature.title}
-                            </Text>
-                            <Text style={styles.featureDescription}>
-                                {feature.description}
-                            </Text>
-                        </View>
+                {/* ──── Bottom Section ──── */}
+                <View style={styles.bottomSection}>
+                    {/* CTA Button */}
+                    <Pressable
+                        onPress={onOpenSettings}
+                        style={({ pressed }) => [
+                            styles.ctaButton,
+                            pressed && styles.ctaButtonPressed,
+                        ]}
+                    >
+                        <Text style={styles.ctaButtonText}>{buttonLabel}</Text>
+                    </Pressable>
+
+                    {/* How-to hint */}
+                    <View style={styles.hintCard}>
+                        <Text style={styles.hintTitle}>How to grant access:</Text>
+                        <Text style={styles.hintStep}>
+                            1. Tap the button above to open Settings
+                        </Text>
+                        <Text style={styles.hintStep}>
+                            2. Find and tap "DataWise" in the list
+                        </Text>
+                        <Text style={styles.hintStep}>
+                            3. Toggle "Allow usage tracking" on
+                        </Text>
+                        <Text style={styles.hintStep}>
+                            4. Come back to this app — it will refresh automatically
+                        </Text>
                     </View>
-                ))}
-            </View>
 
-            {/* ──── Bottom Section ──── */}
-            <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 24 }]}>
-                {/* CTA Button */}
-                <Pressable
-                    onPress={onOpenSettings}
-                    style={({ pressed }) => [
-                        styles.ctaButton,
-                        pressed && styles.ctaButtonPressed,
-                    ]}
-                >
-                    <Text style={styles.ctaButtonText}>{buttonLabel}</Text>
-                    <Text style={styles.ctaArrow}>→</Text>
-                </Pressable>
-
-                {/* Privacy Note */}
-                <Text style={styles.privacyNote}>
-                    🔒 Your data stays on your device. We never upload usage information.
-                </Text>
-            </View>
+                    {/* Privacy Note */}
+                    <Text style={styles.privacyNote}>
+                        🔒 Your data stays on your device. We never upload usage information.
+                    </Text>
+                </View>
+            </ScrollView>
         </View>
     );
 }
@@ -136,6 +162,14 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: NAVY,
+    },
+
+    // ── Scroll wrapper ──
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
     },
 
     // ── Top ──
@@ -190,10 +224,9 @@ const styles = StyleSheet.create({
 
     // ── Features ──
     featuresSection: {
-        flex: 1,
         paddingHorizontal: 24,
         gap: 12,
-        justifyContent: "center",
+        marginBottom: 24,
     },
     featureCard: {
         flexDirection: "row",
@@ -236,6 +269,7 @@ const styles = StyleSheet.create({
     bottomSection: {
         paddingHorizontal: 24,
         gap: 16,
+        marginTop: "auto",
     },
     ctaButton: {
         flexDirection: "row",
@@ -255,10 +289,25 @@ const styles = StyleSheet.create({
         fontWeight: "700",
         color: NAVY,
     },
-    ctaArrow: {
-        fontSize: 18,
+    hintCard: {
+        backgroundColor: "rgba(79, 89, 158, 0.2)",
+        borderWidth: 1,
+        borderColor: "rgba(79, 89, 158, 0.25)",
+        borderRadius: 12,
+        padding: 14,
+        gap: 4,
+    },
+    hintTitle: {
+        fontSize: 13,
         fontWeight: "700",
-        color: BLUE,
+        color: "rgba(255, 255, 255, 0.7)",
+        marginBottom: 4,
+    },
+    hintStep: {
+        fontSize: 12,
+        fontWeight: "400",
+        color: "rgba(255, 255, 255, 0.5)",
+        lineHeight: 18,
     },
     privacyNote: {
         fontSize: 12,

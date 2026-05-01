@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
 import { BorderRadius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/context/ThemeContext';
 
 export type CardProps = ViewProps & {
@@ -14,31 +13,51 @@ export type CardProps = ViewProps & {
  * Glassmorphism-styled card component.
  * Light mode: white with soft shadow and subtle border.
  * Dark mode: frosted glass effect with translucent background.
+ *
+ * Wrapped in React.memo to prevent re-renders when parent re-renders
+ * but card props haven't changed.
  */
-export function Card({ style, variant = 'elevated', children, ...props }: CardProps) {
-  const theme = useTheme();
+export const Card = React.memo(function Card({
+  style,
+  variant = 'elevated',
+  children,
+  ...props
+}: CardProps) {
   const { isDark } = useThemeMode();
+
+  const dynamicStyle = useMemo(
+    () => ({
+      backgroundColor: isDark
+        ? 'rgba(18, 25, 51, 0.85)'
+        : 'rgba(255, 255, 255, 0.92)',
+    }),
+    [isDark],
+  );
+
+  const elevationStyle = useMemo(
+    () => {
+      if (variant !== 'elevated') return undefined;
+      return isDark ? styles.elevatedDark : styles.elevatedLight;
+    },
+    [variant, isDark],
+  );
+
+  const borderStyle = useMemo(
+    () => {
+      if (!isDark || variant !== 'elevated') return undefined;
+      return { borderColor: 'rgba(79, 89, 158, 0.2)' };
+    },
+    [isDark, variant],
+  );
 
   return (
     <View
-      style={[
-        styles.base,
-        {
-          backgroundColor: isDark
-            ? 'rgba(18, 25, 51, 0.85)'
-            : 'rgba(255, 255, 255, 0.92)',
-        },
-        variant === 'elevated' && (isDark ? styles.elevatedDark : styles.elevatedLight),
-        isDark && variant === 'elevated' && {
-          borderColor: 'rgba(79, 89, 158, 0.2)',
-        },
-        style,
-      ]}
+      style={[styles.base, dynamicStyle, elevationStyle, borderStyle, style]}
       {...props}>
       {children}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   base: {

@@ -1,91 +1,165 @@
-/**
- * Wallet state hook for DataWise payment feature.
- * Phase 1: local state with mock data. No backend calls.
- */
-
-import { useCallback, useState } from 'react';
-
-import type { Transaction, WalletState } from '@/types/payments';
-
-// ── Mock Data ──────────────────────────────────────────────────────────────
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'DW-20260428-4412',
-    planName: '10 GB MTN monthly',
-    amount: 3500,
-    status: 'success',
-    type: 'data',
-    date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'DW-20260427-3301',
-    planName: 'Wallet top-up',
-    amount: 5000,
-    status: 'success',
-    type: 'wallet_topup',
-    date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'DW-20260420-2287',
-    planName: '5 GB Airtel monthly',
-    amount: 2000,
-    status: 'failed',
-    type: 'data',
-    date: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString(),
-    refunded: true,
-  },
-  {
-    id: 'DW-20260415-1190',
-    planName: '3 GB Glo weekly',
-    amount: 1200,
-    status: 'pending',
-    type: 'data',
-    date: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'DW-20260410-0055',
-    planName: 'Wallet top-up',
-    amount: 3000,
-    status: 'success',
-    type: 'wallet_topup',
-    date: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
-const INITIAL_BALANCE = 1200;
-
-// ── Hook ───────────────────────────────────────────────────────────────────
+import { supabase } from '@/lib/supabase';
+import type { Transaction } from '@/types/payments';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type UseWalletReturn = {
   balance: number;
   transactions: Transaction[];
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
   fund: (amount: number) => void;
   deduct: (amount: number) => void;
   addTransaction: (tx: Transaction) => void;
 };
 
+function mapTransaction(row: Record<string, unknown>): Transaction {
+  return {
+    id: row.id as string,
+    planName: (row.plan_name as string) ?? 'Wallet top-up',
+    amount: Math.round((row.amount as number) / 100),
+    status: row.status as Transaction['status'],
+    type: row.type === 'wallet_topup' ? 'wallet_topup' : 'data',
+    date: row.created_at as string,
+    refunded: (row.refunded as boolean) ?? false,
+  };
+}
+
 export function useWallet(): UseWalletReturn {
-  const [balance, setBalance] = useState(INITIAL_BALANCE);
-  const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const mountIdRef = useRef(0);
+
+  const fetchWallet = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    const { data: wallet, error: walletErr } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single();
+
+    if (walletErr) {
+      setError('Failed to load wallet');
+      setLoading(false);
+      return;
+    }
+
+    setBalance(Math.round((wallet.balance as number) / 100));
+
+    const { data: txRows, error: txErr } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (txErr) {
+      setError('Failed to load transactions');
+      setLoading(false);
+      return;
+    }
+
+    setTransactions((txRows ?? []).map(mapTransaction));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    // Unique ID per mount — prevents channel name collisions with stale cleanups
+    const mountId = ++mountIdRef.current;
+    let cancelled = false;
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      // If cleanup already ran (React strict mode / fast remount), bail out
+      if (cancelled || !user) return;
+
+      fetchWallet();
+
+      // Unique channel name per mount avoids "callbacks after subscribe" error
+      const channel = supabase
+        .channel(`wallet-live-${user.id}-${mountId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'wallets',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newBalance = payload.new as { balance: number };
+            setBalance(Math.round(newBalance.balance / 100));
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'transactions',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newTx = mapTransaction(payload.new as Record<string, unknown>);
+            setTransactions((prev) => [newTx, ...prev]);
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'transactions',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const updated = mapTransaction(payload.new as Record<string, unknown>);
+            setTransactions((prev) =>
+              prev.map((tx) => (tx.id === updated.id ? updated : tx))
+            );
+          }
+        )
+        .subscribe();
+
+      channelRef.current = channel;
+    });
+
+    return () => {
+      cancelled = true;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [fetchWallet]);
 
   const fund = useCallback((amount: number) => {
-    // TODO(backend): replace with real call in Phase 2
-    // Will call: supabase.from('wallets').update({ balance: newBalance })
     setBalance((prev) => prev + amount);
   }, []);
 
   const deduct = useCallback((amount: number) => {
-    // TODO(backend): replace with real call in Phase 2
-    // Will call: supabase.from('wallets').update({ balance: newBalance })
     setBalance((prev) => Math.max(0, prev - amount));
   }, []);
 
   const addTransaction = useCallback((tx: Transaction) => {
-    // TODO(backend): replace with real call in Phase 2
-    // Will call: supabase.from('transactions').insert(tx)
     setTransactions((prev) => [tx, ...prev]);
   }, []);
 
-  return { balance, transactions, fund, deduct, addTransaction };
+  return {
+    balance,
+    transactions,
+    loading,
+    error,
+    refetch: fetchWallet,
+    fund,
+    deduct,
+    addTransaction,
+  };
 }

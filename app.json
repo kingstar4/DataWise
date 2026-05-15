@@ -18,7 +18,9 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.thehubx.DataWise",
-      "permissions": ["android.permission.PACKAGE_USAGE_STATS"]
+      "permissions": [
+        "android.permission.PACKAGE_USAGE_STATS"
+      ]
     },
     "web": {
       "output": "static",
@@ -38,7 +40,9 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -2,18 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Badge, Card, HeroHeader, InsightCard, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
+import { useWalletContext } from '@/context/WalletContext';
 import { getMonthlyBundles, normalizeCarrierName } from '@/data/bundles';
 import { useTheme } from '@/hooks/use-theme';
 import {
   projectMonthlyUsage,
 } from '@/hooks/useBundleRecommendation';
 import { useDataUsage } from '@/hooks/useDataUsage';
+import { supabase } from '@/lib/supabase';
 import UsageAccess from '@/native/UsageAccess';
 import type { BundlePlan } from '@/types/payments';
 
@@ -51,7 +53,7 @@ export default function PlanPickerScreen() {
   );
 
   // ── Plans for carrier ──
-  const plans: BundlePlan[] = useMemo(() => {
+  const fallbackPlans: BundlePlan[] = useMemo(() => {
     if (!carrierId) return [];
     const monthly = getMonthlyBundles(carrierId);
     // Map to BundlePlan type and take top 3 that are closest to projected usage
@@ -63,6 +65,8 @@ export default function PlanPickerScreen() {
       validity: b.validityDays,
       ussdCode: b.ussdCode,
       pricePerGb: b.costPerGB,
+      network: carrierId,
+      cheapDataHubId: b.cheapDataHubId,
     }));
     // Find plans around the projected usage — include plans that cover usage + one below
     const bufferedGB = projectedGB * 1.2;
@@ -89,6 +93,47 @@ export default function PlanPickerScreen() {
     }
     return result.slice(0, 3);
   }, [carrierId, projectedGB]);
+
+  const [livePlans, setLivePlans] = useState<BundlePlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansError, setPlansError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!carrierId) {
+      setLivePlans([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPlans() {
+      setPlansLoading(true);
+      setPlansError(null);
+
+      const { data, error } = await supabase.functions.invoke('get-data-plans', {
+        body: { network: carrierId, category: 'monthly' },
+      });
+
+      if (cancelled) return;
+
+      if (error || data?.status !== 'success') {
+        setPlansError(data?.error ?? error?.message ?? 'Could not load live plans');
+        setLivePlans([]);
+      } else {
+        setLivePlans((data.plans ?? []).slice(0, 8));
+      }
+
+      setPlansLoading(false);
+    }
+
+    loadPlans();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [carrierId]);
+
+  const plans = livePlans.length > 0 ? livePlans : fallbackPlans;
 
   // ── Best value plan (lowest pricePerGb that covers projected usage) ──
   const bestValueId = useMemo(() => {
@@ -132,9 +177,7 @@ export default function PlanPickerScreen() {
     return `Your projected usage is ${projectedGB} GB/month. This plan may run short. Consider upgrading for a comfortable buffer.`;
   }, [selectedPlan, projectedGB]);
 
-  // ── Mock wallet balance (Phase 1 local state) ──
-  // TODO(backend): replace with real wallet balance in Phase 2
-  const walletBalance = 1200;
+  const { balance: walletBalance } = useWalletContext();
 
   // ── Navigation ──
   const handleContinue = useCallback(() => {
@@ -148,6 +191,8 @@ export default function PlanPickerScreen() {
       planValidity: String(selectedPlan.validity),
       planUssd: selectedPlan.ussdCode,
       planPricePerGb: String(selectedPlan.pricePerGb),
+      planNetwork: selectedPlan.network,
+      planCheapDataHubId: String(selectedPlan.cheapDataHubId ?? ''),
       carrierName,
       projectedGB: String(projectedGB),
     };
@@ -195,6 +240,21 @@ export default function PlanPickerScreen() {
         <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
           RECOMMENDED PLANS
         </Text>
+
+        {plansLoading && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color="#6366F1" />
+            <Text style={[styles.loadingText, { color: theme.textMuted }]}>
+              Loading live plans...
+            </Text>
+          </View>
+        )}
+
+        {!plansLoading && plansError && (
+          <Text style={[styles.fallbackText, { color: theme.textMuted }]}>
+            Live prices unavailable. Showing saved plans.
+          </Text>
+        )}
 
         {/* Plan cards */}
         {plans.map((plan) => {
@@ -375,6 +435,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: -Spacing.one,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
+  loadingText: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+  },
+  fallbackText: {
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    marginTop: -Spacing.one,
   },
   planCard: {
     position: 'relative',

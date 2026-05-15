@@ -1,8 +1,11 @@
 /**
  * Local catalog of Nigerian carrier data bundles.
  *
- * Plans are sourced from official carrier USSD menus (as of April 2026).
- * Update this file when carriers change their pricing.
+ * Plans are sourced from CheapDataHub reseller API (as of May 2026).
+ * Each plan has a `cheapDataHubId` that maps to CheapDataHub's `bundle_id`.
+ * Retail prices include a markup over CheapDataHub wholesale cost.
+ *
+ * Update this file when CheapDataHub changes their plan catalog.
  */
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -20,16 +23,20 @@ export type DataBundle = {
   name: string;
   /** Data allocation in GB */
   dataGB: number;
-  /** Price in Nigerian Naira */
+  /** Retail price in Nigerian Naira (what user pays) */
   priceNGN: number;
+  /** Wholesale cost from CheapDataHub */
+  costNGN: number;
   /** Validity in days */
   validityDays: number;
-  /** USSD code to purchase this plan */
+  /** USSD code to purchase this plan (fallback info) */
   ussdCode: string;
   /** Plan category */
   category: BundleCategory;
-  /** Cost per GB (auto-computed) */
+  /** Cost per GB (auto-computed from retail price) */
   costPerGB: number;
+  /** CheapDataHub bundle_id for API purchase */
+  cheapDataHubId: number;
 };
 
 // ── Carrier Name Normalization ─────────────────────────────────────────────
@@ -89,102 +96,94 @@ function makeBundle(
   name: string,
   dataGB: number,
   priceNGN: number,
+  costNGN: number,
   validityDays: number,
   ussdCode: string,
   category: BundleCategory,
+  cheapDataHubId: number,
 ): DataBundle {
   return {
-    id: `${carrier}-${category}-${dataGB}GB`.toLowerCase(),
+    id: `${carrier}-${category}-${dataGB}GB-${cheapDataHubId}`.toLowerCase(),
     carrier,
     name,
     dataGB,
     priceNGN,
+    costNGN,
     validityDays,
     ussdCode,
     category,
-    costPerGB: Math.round(priceNGN / dataGB),
+    costPerGB: dataGB > 0 ? Math.round(priceNGN / dataGB) : 0,
+    cheapDataHubId,
   };
 }
 
 // ── MTN Plans ──────────────────────────────────────────────────────────────
+// CheapDataHub IDs from plan catalog
 
 const MTN_BUNDLES: DataBundle[] = [
   // Daily
-  makeBundle('MTN', 'MTN 100MB Daily', 0.1, 100, 1, '*131*1*1*1#', 'daily'),
-  makeBundle('MTN', 'MTN 200MB Daily', 0.2, 200, 1, '*131*1*1*2#', 'daily'),
+  makeBundle('MTN', 'MTN 110MB Daily',   0.11,  120,   99,   1, '*131*1*1*1#', 'daily',   43),
+  makeBundle('MTN', 'MTN 230MB Daily',   0.23,  250,  200,   1, '*131*1*1*2#', 'daily',   74),
 
   // Weekly
-  makeBundle('MTN', 'MTN 750MB Weekly', 0.75, 500, 7, '*131*1*2*1#', 'weekly'),
-  makeBundle('MTN', 'MTN 1GB Weekly', 1, 500, 7, '*131*1*2*2#', 'weekly'),
+  makeBundle('MTN', 'MTN 1GB Weekly',    1,     550,  450,   7, '*131*1*2*2#', 'weekly',  45),
+  makeBundle('MTN', 'MTN 2GB Weekly',    2,    1050,  930,   7, '*131*1*2*3#', 'weekly',  47),
 
   // Monthly
-  makeBundle('MTN', 'MTN 1.5GB Monthly', 1.5, 1000, 30, '*131*1*3*1#', 'monthly'),
-  makeBundle('MTN', 'MTN 2GB Monthly', 2, 1200, 30, '*131*1*3*2#', 'monthly'),
-  makeBundle('MTN', 'MTN 3GB Monthly', 3, 1500, 30, '*131*1*3*3#', 'monthly'),
-  makeBundle('MTN', 'MTN 5GB Monthly', 5, 2500, 30, '*131*1*3*4#', 'monthly'),
-  makeBundle('MTN', 'MTN 10GB Monthly', 10, 3500, 30, '*131*1*3*5#', 'monthly'),
-  makeBundle('MTN', 'MTN 15GB Monthly', 15, 5000, 30, '*131*1*3*6#', 'monthly'),
-  makeBundle('MTN', 'MTN 20GB Monthly', 20, 5500, 30, '*131*1*3*7#', 'monthly'),
+  makeBundle('MTN', 'MTN 500MB Monthly', 0.5,   450,  350,  30, '*131*1*3*0#', 'monthly', 44),
+  makeBundle('MTN', 'MTN 1GB Monthly',   1,     700,  570,  30, '*131*1*3*1#', 'monthly', 46),
+  makeBundle('MTN', 'MTN 2GB Monthly',   2,    1350, 1150,  30, '*131*1*3*2#', 'monthly', 48),
+  makeBundle('MTN', 'MTN 3GB Monthly',   3,    1600, 1370,  30, '*131*1*3*3#', 'monthly', 49),
+  makeBundle('MTN', 'MTN 5GB Monthly',   5,    2400, 2050,  30, '*131*1*3*4#', 'monthly', 50),
+  makeBundle('MTN', 'MTN 7GB Monthly',   7,    3800, 3499,  30, '*131*1*3*5#', 'monthly', 33),
+  makeBundle('MTN', 'MTN 10GB Monthly', 10,    5000, 4470,  30, '*131*1*3*6#', 'monthly', 67),
 ];
 
 // ── Airtel Plans ───────────────────────────────────────────────────────────
 
 const AIRTEL_BUNDLES: DataBundle[] = [
   // Daily
-  makeBundle('Airtel', 'Airtel 100MB Daily', 0.1, 100, 1, '*141*100#', 'daily'),
-  makeBundle('Airtel', 'Airtel 200MB Daily', 0.2, 200, 1, '*141*200#', 'daily'),
+  makeBundle('Airtel', 'Airtel 1.5GB Daily', 1.5,   600,  500,   1, '*141*500#',  'daily',   69),
 
   // Weekly
-  makeBundle('Airtel', 'Airtel 750MB Weekly', 0.75, 500, 7, '*141*502#', 'weekly'),
-  makeBundle('Airtel', 'Airtel 1.5GB Weekly', 1.5, 500, 14, '*141*504#', 'weekly'),
+  makeBundle('Airtel', 'Airtel 500MB Weekly', 0.5,   600,  490,   7, '*141*502#',  'weekly',  13),
+  makeBundle('Airtel', 'Airtel 1GB Weekly',   1,     900,  785,   7, '*141*785#',  'weekly',  15),
+  makeBundle('Airtel', 'Airtel 5GB Weekly',   5,    1800, 1570,   7, '*141*1570#', 'weekly',  52),
 
   // Monthly
-  makeBundle('Airtel', 'Airtel 2GB Monthly', 2, 1200, 30, '*141*1200#', 'monthly'),
-  makeBundle('Airtel', 'Airtel 3GB Monthly', 3, 1500, 30, '*141*1500#', 'monthly'),
-  makeBundle('Airtel', 'Airtel 4.5GB Monthly', 4.5, 2000, 30, '*141*2000#', 'monthly'),
-  makeBundle('Airtel', 'Airtel 6GB Monthly', 6, 2500, 30, '*141*2500#', 'monthly'),
-  makeBundle('Airtel', 'Airtel 10GB Monthly', 10, 3000, 30, '*141*3000#', 'monthly'),
-  makeBundle('Airtel', 'Airtel 20GB Monthly', 20, 5000, 30, '*141*5000#', 'monthly'),
+  makeBundle('Airtel', 'Airtel 2GB Monthly',  2,    1700, 1470,  30, '*141*1200#', 'monthly', 17),
+  makeBundle('Airtel', 'Airtel 3GB Monthly',  3,    2200, 1960,  30, '*141*1500#', 'monthly', 18),
+  makeBundle('Airtel', 'Airtel 4GB Monthly',  4,    2900, 2570,  30, '*141*2000#', 'monthly', 19),
+  makeBundle('Airtel', 'Airtel 8GB Monthly',  8,    3400, 2999,  30, '*141*3000#', 'monthly', 20),
+  makeBundle('Airtel', 'Airtel 10GB Monthly',10,    4500, 4070,  30, '*141*5000#', 'monthly', 21),
 ];
 
 // ── Glo Plans ──────────────────────────────────────────────────────────────
 
 const GLO_BUNDLES: DataBundle[] = [
   // Daily
-  makeBundle('Glo', 'Glo 150MB Daily', 0.15, 100, 1, '*127*51#', 'daily'),
-  makeBundle('Glo', 'Glo 350MB Daily', 0.35, 200, 2, '*127*56#', 'daily'),
+  makeBundle('Glo', 'Glo 200MB Daily',     0.2,   120,   89,   1, '*127*51#', 'daily',   42),
 
   // Weekly
-  makeBundle('Glo', 'Glo 1.35GB Weekly', 1.35, 500, 14, '*127*57#', 'weekly'),
+  makeBundle('Glo', 'Glo 1GB Weekly',      1,     350,  280,   3, '*127*57#', 'weekly',  68),
+  makeBundle('Glo', 'Glo 5GB Weekly',      5,    1900, 1690,   7, '*127*59#', 'weekly',  54),
 
   // Monthly
-  makeBundle('Glo', 'Glo 2.9GB Monthly', 2.9, 1000, 30, '*127*53#', 'monthly'),
-  makeBundle('Glo', 'Glo 4.1GB Monthly', 4.1, 1500, 30, '*127*58#', 'monthly'),
-  makeBundle('Glo', 'Glo 5.8GB Monthly', 5.8, 2000, 30, '*127*54#', 'monthly'),
-  makeBundle('Glo', 'Glo 7.7GB Monthly', 7.7, 2500, 30, '*127*59#', 'monthly'),
-  makeBundle('Glo', 'Glo 10GB Monthly', 10, 3000, 30, '*127*2#', 'monthly'),
-  makeBundle('Glo', 'Glo 13.25GB Monthly', 13.25, 4000, 30, '*127*60#', 'monthly'),
-  makeBundle('Glo', 'Glo 18.25GB Monthly', 18.25, 5000, 30, '*127*3#', 'monthly'),
+  makeBundle('Glo', 'Glo 500MB Monthly',   0.5,   300,  225,  30, '*127*52#', 'monthly', 35),
+  makeBundle('Glo', 'Glo 1GB Monthly',     1,     550,  425,  30, '*127*53#', 'monthly', 36),
+  makeBundle('Glo', 'Glo 2GB Monthly',     2,    1050,  840,  30, '*127*54#', 'monthly', 40),
+  makeBundle('Glo', 'Glo 3GB Monthly',     3,    1500, 1290,  30, '*127*58#', 'monthly', 37),
+  makeBundle('Glo', 'Glo 5GB Monthly',     5,    2500, 2190,  30, '*127*59#', 'monthly', 38),
+  makeBundle('Glo', 'Glo 10GB Monthly',   10,    4800, 4390,  30, '*127*2#',  'monthly', 39),
+  makeBundle('Glo', 'Glo 20.5GB Monthly',20.5,   5800, 5300,  30, '*127*3#',  'monthly', 59),
 ];
 
 // ── 9mobile Plans ──────────────────────────────────────────────────────────
+// Note: No 9mobile plans currently available on CheapDataHub.
+// Plans listed here use placeholder CheapDataHub IDs (0) and will be
+// rejected by the purchase endpoint until real IDs are configured.
 
-const NINE_MOBILE_BUNDLES: DataBundle[] = [
-  // Daily
-  makeBundle('9mobile', '9mobile 100MB Daily', 0.1, 100, 1, '*229*3*1#', 'daily'),
-  makeBundle('9mobile', '9mobile 250MB Daily', 0.25, 200, 1, '*229*3*2#', 'daily'),
-
-  // Weekly
-  makeBundle('9mobile', '9mobile 1GB Weekly', 1, 500, 7, '*229*2*1#', 'weekly'),
-
-  // Monthly
-  makeBundle('9mobile', '9mobile 1.5GB Monthly', 1.5, 1000, 30, '*229*2*12#', 'monthly'),
-  makeBundle('9mobile', '9mobile 2GB Monthly', 2, 1200, 30, '*229*2*22#', 'monthly'),
-  makeBundle('9mobile', '9mobile 3GB Monthly', 3, 1500, 30, '*229*2*8#', 'monthly'),
-  makeBundle('9mobile', '9mobile 4.5GB Monthly', 4.5, 2000, 30, '*229*2*36#', 'monthly'),
-  makeBundle('9mobile', '9mobile 11GB Monthly', 11, 4000, 30, '*229*2*5#', 'monthly'),
-  makeBundle('9mobile', '9mobile 15GB Monthly', 15, 5000, 30, '*229*2*3#', 'monthly'),
-];
+const NINE_MOBILE_BUNDLES: DataBundle[] = [];
 
 // ── Aggregated Catalog ─────────────────────────────────────────────────────
 
@@ -210,4 +209,11 @@ export function getMonthlyBundles(carrier: CarrierId): DataBundle[] {
   return getBundlesForCarrier(carrier)
     .filter((b) => b.category === 'monthly')
     .sort((a, b) => a.priceNGN - b.priceNGN);
+}
+
+/**
+ * Find a bundle by its CheapDataHub ID.
+ */
+export function getBundleByCheapDataHubId(id: number): DataBundle | undefined {
+  return ALL_BUNDLES.find((b) => b.cheapDataHubId === id);
 }

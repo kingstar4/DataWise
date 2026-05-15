@@ -2,7 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,12 +12,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card, ThemeToggle } from '@/components/ui';
+import { ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
+import { useWalletContext } from '@/context/WalletContext';
 import { useTheme } from '@/hooks/use-theme';
-import { useWallet } from '@/hooks/useWallet';
-import type { Transaction, TransactionStatus, TransactionType } from '@/types/payments';
+import type { Transaction } from '@/types/payments';
 
 // ── Filter types ───────────────────────────────────────────────────────────
 
@@ -61,7 +63,8 @@ export default function TransactionsScreen() {
   const walletIcon = useMemo(() => getWalletIcon(isDark), [isDark]);
 
   // ── Wallet data ──
-  const { balance, transactions } = useWallet();
+  const { balance, transactions, loading, error, refetch } = useWalletContext();
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Filter state ──
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
@@ -73,8 +76,12 @@ export default function TransactionsScreen() {
     );
     const totalSpent = successData.reduce((sum, t) => sum + t.amount, 0);
     const purchaseCount = successData.length;
-    // TODO(backend): replace mock saved amount with real calculation in Phase 2
-    const savedAmount = 2100;
+
+    const successTopups = transactions.filter(
+      (t) => t.type === 'wallet_topup' && t.status === 'success',
+    );
+    const totalFunded = successTopups.reduce((sum, t) => sum + t.amount, 0);
+    const savedAmount = Math.max(0, totalFunded - totalSpent);
 
     return { totalSpent, purchaseCount, savedAmount };
   }, [transactions]);
@@ -120,13 +127,31 @@ export default function TransactionsScreen() {
     return '';
   };
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
+
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
       contentContainerStyle={{
         paddingBottom: BottomTabInset + Spacing.four,
         paddingTop: insets.top + Spacing.three,
-      }}>
+      }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor="#6366F1"
+          colors={['#6366F1']}
+          progressBackgroundColor={theme.card}
+        />
+      }>
       {/* ──── Back nav ──── */}
       <Pressable onPress={() => router.back()} style={styles.backRow}>
         <Ionicons name="chevron-back" size={20} color={theme.textMuted} />
@@ -203,6 +228,24 @@ export default function TransactionsScreen() {
         ))}
       </ScrollView>
 
+      {loading && (
+        <View style={styles.emptyState}>
+          <ActivityIndicator color="#6366F1" />
+          <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+            Loading transactions...
+          </Text>
+        </View>
+      )}
+
+      {!loading && error && (
+        <View style={styles.emptyState}>
+          <Ionicons name="alert-circle-outline" size={32} color="#EC4899" />
+          <Text style={[styles.emptyText, { color: '#EC4899' }]}>
+            {error}
+          </Text>
+        </View>
+      )}
+
       {/* ──── Transaction List ──── */}
       <View style={styles.txList}>
         {filtered.length === 0 && (
@@ -269,8 +312,8 @@ export default function TransactionsScreen() {
                   {isWalletTopup
                     ? 'funding'
                     : tx.refunded
-                    ? 'refunded'
-                    : 'data'}
+                      ? 'refunded'
+                      : 'data'}
                 </Text>
               </View>
             </View>

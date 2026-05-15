@@ -1,13 +1,6 @@
-/**
- * Purchase flow hook for DataWise payment feature.
- * Phase 1: simulates a 1.5s delay then resolves success. No real API calls.
- */
-
-import { useCallback, useRef, useState } from 'react';
-
+import { supabase } from '@/lib/supabase';
 import type { BundlePlan, Transaction } from '@/types/payments';
-
-// ── Types ──────────────────────────────────────────────────────────────────
+import { useCallback, useRef, useState } from 'react';
 
 export type PurchaseStatus = 'idle' | 'processing' | 'success' | 'failed';
 
@@ -19,16 +12,6 @@ export type UsePurchaseReturn = {
   reset: () => void;
 };
 
-// ── Hook ───────────────────────────────────────────────────────────────────
-
-/**
- * Manages the purchase flow for a data bundle.
- *
- * @param plan - The selected bundle plan
- * @param walletBalance - Current wallet balance
- * @param deduct - Wallet deduct action
- * @param addTransaction - Action to add a transaction record
- */
 export function usePurchase(
   plan: BundlePlan | null,
   walletBalance: number,
@@ -38,8 +21,6 @@ export function usePurchase(
   const [status, setStatus] = useState<PurchaseStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transactionId, setTransactionId] = useState<string | null>(null);
-
-  // Track the deducted amount so we can restore on failure
   const deductedRef = useRef(0);
 
   const purchase = useCallback(async (): Promise<boolean> => {
@@ -58,45 +39,86 @@ export function usePurchase(
     setStatus('processing');
     setError(null);
 
-    // Optimistically deduct from wallet
+    // Optimistic deduction — Realtime will confirm the real balance
     deductedRef.current = plan.price;
     deduct(plan.price);
 
+    // Generate idempotency key — prevents double charge on retry
+    const idempotencyKey = `${plan.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     try {
-      // TODO(backend): replace with real call in Phase 2
-      // Will call: supabase.functions.invoke('purchase-data', {
-      //   body: { planId: plan.id, amount: plan.price }
-      // })
-
-      // Phase 1: simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Phase 1: always succeed
-      const txId = `DW-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 9000 + 1000)}`;
-      setTransactionId(txId);
-
-      // Record transaction
-      addTransaction({
-        id: txId,
-        planName: plan.name,
-        amount: plan.price,
-        status: 'success',
-        type: 'data',
-        date: new Date().toISOString(),
+      const { data, error: fnError } = await supabase.functions.invoke('purchase-data', {
+        body: {
+          plan_id: String(plan.id),
+          plan_name: plan.name,
+          network: plan.network ?? plan.name.split(' ')[0], // extract network from name
+          price_ngn: plan.price,
+          idempotency_key: idempotencyKey,
+          cheap_datahub_id: plan.cheapDataHubId,
+        },
       });
 
-      setStatus('success');
-      return true;
-    } catch {
-      // On failure: restore wallet balance
-      // TODO(backend): handle real API error responses in Phase 2
-      deduct(-deductedRef.current); // restore by adding back
+      if (fnError) throw new Error(fnError.message);
+
+      if (data.status === 'success') {
+        setTransactionId(data.transaction_id);
+
+        // Optimistic transaction record — Realtime will sync the real one
+        addTransaction({
+          id: data.transaction_id,
+          planName: plan.name,
+          amount: plan.price,
+          status: 'success',
+          type: 'data',
+          date: new Date().toISOString(),
+        });
+
+        setStatus('success');
+        return true;
+
+      } else {
+        // Edge function returned failure — wallet already restored server-side
+        // Undo our optimistic deduction
+        deduct(-deductedRef.current);
+        deductedRef.current = 0;
+
+        const errorMsg = data.error ?? 'Purchase failed. Your wallet has been refunded.';
+        setError(errorMsg);
+        setStatus('failed');
+
+        addTransaction({
+          id: data.transaction_id ?? `DW-FAIL-${Date.now()}`,
+          planName: plan.name,
+          amount: plan.price,
+          status: 'failed',
+          type: 'data',
+          date: new Date().toISOString(),
+          refunded: true,
+        });
+
+        return false;
+      }
+
+    } catch (e: any) {
+      // Network error or unexpected failure
+      // Undo optimistic deduction
+      deduct(-deductedRef.current);
       deductedRef.current = 0;
 
-      setError('Purchase failed. Your wallet has been refunded.');
+      let errorMessage = 'Connection error. Please try again — your wallet has not been charged.';
+      
+      if (e.name === 'FunctionsHttpError' && e.context) {
+        try {
+          const body = await e.context.json();
+          if (body?.error) {
+            errorMessage = body.error;
+          }
+        } catch (_) {}
+      }
+
+      setError(errorMessage);
       setStatus('failed');
 
-      // Record failed transaction
       addTransaction({
         id: `DW-FAIL-${Date.now()}`,
         planName: plan.name,

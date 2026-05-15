@@ -9,10 +9,12 @@ export type BundlePlan = {
   id: string;
   name: string;       // e.g. "15 GB monthly"
   gb: number;
-  price: number;      // NGN
+  price: number;      // NGN (retail price charged to user)
   validity: number;   // days
   ussdCode: string;
   pricePerGb: number;
+  network?: string;
+  cheapDataHubId?: number;  // CheapDataHub bundle_id for API purchase
 };
 
 // ── Transaction Types ──────────────────────────────────────────────────────

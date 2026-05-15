@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
+import { useWalletContext } from '@/context/WalletContext';
 import { useTheme } from '@/hooks/use-theme';
+import { usePurchase } from '@/hooks/usePurchase';
 import type { BundlePlan } from '@/types/payments';
 
 // ── Numpad layout ──────────────────────────────────────────────────────────
@@ -22,7 +26,7 @@ const NUMPAD_KEYS = [
   '1', '2', '3',
   '4', '5', '6',
   '7', '8', '9',
-  '',  '0', 'del',
+  '', '0', 'del',
 ] as const;
 
 export default function ConfirmPurchaseScreen() {
@@ -40,9 +44,13 @@ export default function ConfirmPurchaseScreen() {
     planValidity: string;
     planUssd: string;
     planPricePerGb: string;
+    planNetwork: string;
+    planCheapDataHubId: string;
     fundAmount: string;
     carrierName: string;
     projectedGB: string;
+    paystackRef: string;
+    transactionId: string;
   }>();
 
   const plan: BundlePlan = useMemo(
@@ -54,6 +62,8 @@ export default function ConfirmPurchaseScreen() {
       validity: Number(params.planValidity) || 30,
       ussdCode: params.planUssd ?? '',
       pricePerGb: Number(params.planPricePerGb) || 0,
+      network: params.planNetwork ?? params.carrierName ?? '',
+      cheapDataHubId: params.planCheapDataHubId ? Number(params.planCheapDataHubId) : undefined,
     }),
     [params],
   );
@@ -62,63 +72,137 @@ export default function ConfirmPurchaseScreen() {
   const carrierName = params.carrierName ?? 'Mobile';
   const projectedGB = params.projectedGB ?? '0';
 
-  // ── Mock wallet balance (Phase 1) ──
-  // TODO(backend): replace with real wallet balance in Phase 2
-  const currentBalance = 1200;
-  const newBalance = currentBalance + fundAmount;
+  // ── Real wallet balance ──
+  const { balance: walletBalance, deduct, addTransaction, refetch } = useWalletContext();
+
+  // ── Purchase hook ──
+  const { purchase, status: purchaseStatus, error: purchaseError, transactionId } =
+    usePurchase(plan, walletBalance, deduct, addTransaction);
+
+  const newBalance = walletBalance + fundAmount;
   const remainingBalance = newBalance - plan.price;
+
+  // ── Paystack payment status polling ──
+  // When user returns from Paystack browser, refetch wallet to check if it was credited
+  const [waitingForPayment, setWaitingForPayment] = useState(fundAmount > 0);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(fundAmount === 0);
+  const [pollCount, setPollCount] = useState(0);
+
+  useEffect(() => {
+    if (!waitingForPayment) return;
+
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'active') {
+        // User returned from browser — refetch wallet
+        await refetch();
+        setPollCount((c) => c + 1);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [waitingForPayment, refetch]);
+
+  // Check if wallet now has enough after refetch
+  useEffect(() => {
+    if (!waitingForPayment) return;
+    if (walletBalance >= plan.price) {
+      setWaitingForPayment(false);
+      setPaymentConfirmed(true);
+    }
+  }, [walletBalance, plan.price, waitingForPayment]);
 
   // ── PIN state ──
   const [pin, setPin] = useState<string[]>([]);
-  const [pinHint, setPinHint] = useState('Enter your 4-digit PIN');
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [pinHint, setPinHint] = useState('Enter your 4-digit PIN to confirm');
   const [pinError, setPinError] = useState(false);
 
-  const handlePinKey = useCallback(
-    (key: string) => {
-      if (isVerifying) return;
+  const isVerifying = purchaseStatus === 'processing';
 
-      if (key === 'del') {
-        setPin((prev) => prev.slice(0, -1));
-        setPinError(false);
-        setPinHint('Enter your 4-digit PIN');
+  const handlePinKey = useCallback(async (key: string) => {
+    if (isVerifying) return;
+
+    if (key === 'del') {
+      setPin((prev) => prev.slice(0, -1));
+      setPinError(false);
+      setPinHint('Enter your 4-digit PIN to confirm');
+      return;
+    }
+
+    if (key === '' || pin.length >= 4) return;
+
+    const newPin = [...pin, key];
+    setPin(newPin);
+
+    if (newPin.length === 4) {
+      setPinHint('Verifying...');
+
+      // If payment not yet confirmed, show waiting message
+      if (!paymentConfirmed) {
+        setPinHint('Waiting for payment confirmation...');
+        setPinError(true);
+        setPin([]);
         return;
       }
 
-      if (key === '' || pin.length >= 4) return;
+      // Call real purchase edge function
+      const success = await purchase();
 
-      const newPin = [...pin, key];
-      setPin(newPin);
-
-      if (newPin.length === 4) {
-        // 4th digit entered — start verification
-        setIsVerifying(true);
-        setPinHint('Verifying...');
-
-        // TODO(backend): replace with real purchase call in Phase 2
-        // Will call: usePurchase.purchase() which calls Supabase Edge Function
+      if (success) {
+        router.replace({
+          pathname: '/purchase-success' as any,
+          params: {
+            planName: plan.name,
+            planGb: String(plan.gb),
+            planPrice: String(plan.price),
+            planValidity: String(plan.validity),
+            transactionId: transactionId ?? '',
+            remainingBalance: String(remainingBalance),
+            carrierName,
+            projectedGB,
+          },
+        });
+      } else {
+        // Show error on PIN dots
+        setPinError(true);
+        setPinHint(purchaseError ?? 'Purchase failed. Please try again.');
+        // Reset PIN after short delay
         setTimeout(() => {
-          // Phase 1: always succeed
-          const txId = `DW-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 9000 + 1000)}`;
-
-          router.replace({
-            pathname: '/purchase-success' as any,
-            params: {
-              planName: plan.name,
-              planGb: String(plan.gb),
-              planPrice: String(plan.price),
-              planValidity: String(plan.validity),
-              transactionId: txId,
-              remainingBalance: String(remainingBalance),
-              carrierName,
-              projectedGB,
-            },
-          });
-        }, 700);
+          setPin([]);
+          setPinError(false);
+          setPinHint('Enter your 4-digit PIN to confirm');
+        }, 2000);
       }
-    },
-    [pin, isVerifying, plan, remainingBalance, router, carrierName, projectedGB],
-  );
+    }
+  }, [
+    pin, isVerifying, paymentConfirmed, purchase,
+    transactionId, remainingBalance, plan,
+    router, carrierName, projectedGB, purchaseError,
+  ]);
+
+  // ── Payment waiting banner ──
+  const renderPaymentStatus = () => {
+    if (fundAmount === 0) return null;
+
+    if (paymentConfirmed) {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: isDark ? '#0a1f18' : '#ecfdf5' }]}>
+          <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+          <Text style={[styles.statusBannerText, { color: '#10B981' }]}>
+            Payment confirmed — wallet funded
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.statusBanner, { backgroundColor: isDark ? '#1a1508' : '#fffbeb' }]}>
+        <ActivityIndicator size="small" color="#F59E0B" />
+        <Text style={[styles.statusBannerText, { color: '#F59E0B' }]}>
+          Waiting for payment... Return here after completing payment
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <ScrollView
@@ -127,6 +211,7 @@ export default function ConfirmPurchaseScreen() {
         paddingBottom: BottomTabInset + Spacing.four,
         paddingTop: insets.top,
       }}>
+
       {/* ──── Back nav + toggle ──── */}
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backRow}>
@@ -141,9 +226,13 @@ export default function ConfirmPurchaseScreen() {
       </Text>
 
       <View style={styles.content}>
+
+        {/* ──── Payment status banner ──── */}
+        {renderPaymentStatus()}
+
         {/* ──── Plan summary hero ──── */}
         <Card style={styles.summaryCard}>
-          <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>You’re buying</Text>
+          <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>You're buying</Text>
           <Text style={styles.summaryAmount}>{plan.gb} GB</Text>
           <Text style={[styles.summaryNetwork, { color: theme.textMuted }]}>
             {carrierName} monthly plan
@@ -174,7 +263,7 @@ export default function ConfirmPurchaseScreen() {
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Wallet balance</Text>
             <Text style={[styles.detailValue, { color: theme.text }]}>
-              ₦{newBalance.toLocaleString()}
+              ₦{walletBalance.toLocaleString()}
             </Text>
           </View>
           <View style={[styles.detailDivider, { backgroundColor: theme.border }]} />
@@ -194,9 +283,7 @@ export default function ConfirmPurchaseScreen() {
           <View style={[styles.detailDivider, { backgroundColor: theme.border }]} />
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Delivery</Text>
-            <Text style={[styles.detailValue, { color: '#10B981' }]}>
-              Instant
-            </Text>
+            <Text style={[styles.detailValue, { color: '#10B981' }]}>Instant</Text>
           </View>
         </Card>
 
@@ -212,7 +299,7 @@ export default function ConfirmPurchaseScreen() {
                 style={[
                   styles.pinDot,
                   pin.length > i && styles.pinDotFilled,
-                  pinError && pin.length > i && styles.pinDotError,
+                  pinError && styles.pinDotError,
                 ]}
               />
             ))}
@@ -225,7 +312,9 @@ export default function ConfirmPurchaseScreen() {
               isVerifying && { color: '#6366F1' },
               pinError && { color: '#EC4899' },
             ]}>
-            {pinHint}
+            {isVerifying ? (
+              <ActivityIndicator size="small" color="#6366F1" />
+            ) : pinHint}
           </Text>
 
           {/* Numpad */}
@@ -239,10 +328,12 @@ export default function ConfirmPurchaseScreen() {
                   <Pressable
                     key="del"
                     onPress={() => handlePinKey('del')}
+                    disabled={isVerifying}
                     style={({ pressed }) => [
                       styles.numpadBtn,
                       { backgroundColor: theme.card, borderColor: theme.border },
                       pressed && { opacity: 0.7 },
+                      isVerifying && { opacity: 0.4 },
                     ]}>
                     <Ionicons name="backspace-outline" size={20} color={theme.textMuted} />
                   </Pressable>
@@ -252,10 +343,12 @@ export default function ConfirmPurchaseScreen() {
                 <Pressable
                   key={key}
                   onPress={() => handlePinKey(key)}
+                  disabled={isVerifying}
                   style={({ pressed }) => [
                     styles.numpadBtn,
                     { backgroundColor: theme.card, borderColor: theme.border },
                     pressed && { opacity: 0.7 },
+                    isVerifying && { opacity: 0.4 },
                   ]}>
                   <Text style={[styles.numpadDigit, { color: theme.text }]}>{key}</Text>
                 </Pressable>
@@ -271,9 +364,7 @@ export default function ConfirmPurchaseScreen() {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
+  scrollView: { flex: 1 },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -281,16 +372,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
   },
-  backRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  backText: {
-    fontSize: 14,
-    fontFamily: Fonts.medium,
-  },
-
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  backText: { fontSize: 14, fontFamily: Fonts.medium },
   pageTitle: {
     fontSize: 22,
     fontFamily: Fonts.extraBold,
@@ -298,50 +381,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     marginBottom: Spacing.three,
   },
-  content: {
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.three,
-  },
-  summaryCard: {
+  content: { paddingHorizontal: Spacing.three, gap: Spacing.three },
+  statusBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.four,
+    gap: 8,
+    padding: 12,
+    borderRadius: BorderRadius.md,
   },
-  summaryLabel: {
-    fontSize: 12,
-    fontFamily: Fonts.medium,
-    color: 'rgba(107,122,153,1)',
-    marginBottom: Spacing.two,
-  },
+  statusBannerText: { fontSize: 13, fontFamily: Fonts.medium, flex: 1 },
+  summaryCard: { alignItems: 'center', paddingVertical: Spacing.four },
+  summaryLabel: { fontSize: 12, fontFamily: Fonts.medium, marginBottom: Spacing.two },
   summaryAmount: {
     fontSize: 40,
     fontFamily: Fonts.numberBold,
     color: '#6366F1',
     letterSpacing: -2,
   },
-  summaryNetwork: {
-    fontSize: 13,
-    fontFamily: Fonts.medium,
-    color: 'rgba(139,163,204,1)',
-    marginTop: 4,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    marginTop: Spacing.three,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontFamily: Fonts.bold,
-  },
-  detailsCard: {
-    padding: 0,
-    overflow: 'hidden',
-  },
+  summaryNetwork: { fontSize: 13, fontFamily: Fonts.medium, marginTop: 4 },
+  badgeRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
+  statusBadgeText: { fontSize: 11, fontFamily: Fonts.bold },
+  detailsCard: { padding: 0, overflow: 'hidden' },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -349,26 +410,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: 13,
   },
-  detailLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-  },
-  detailValue: {
-    fontSize: 13,
-    fontFamily: Fonts.numberSemiBold,
-  },
-  detailDivider: {
-    height: 1,
-  },
-  pinCard: {
-    paddingVertical: Spacing.three,
-  },
-  pinLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: 'rgba(139,163,204,1)',
-    marginBottom: Spacing.two,
-  },
+  detailLabel: { fontSize: 13, fontFamily: Fonts.regular },
+  detailValue: { fontSize: 13, fontFamily: Fonts.numberSemiBold },
+  detailDivider: { height: 1 },
+  pinCard: { paddingVertical: Spacing.three },
+  pinLabel: { fontSize: 13, fontFamily: Fonts.semiBold, marginBottom: Spacing.two },
   pinDots: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -382,27 +428,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#2a3a5c',
   },
-  pinDotFilled: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1',
-  },
-  pinDotError: {
-    backgroundColor: '#EC4899',
-    borderColor: '#EC4899',
-  },
+  pinDotFilled: { backgroundColor: '#6366F1', borderColor: '#6366F1' },
+  pinDotError: { backgroundColor: '#EC4899', borderColor: '#EC4899' },
   pinHintText: {
     textAlign: 'center',
     fontSize: 12,
     fontFamily: Fonts.regular,
-    color: 'rgba(107,122,153,1)',
     marginBottom: Spacing.three,
   },
-  numpad: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: Spacing.one,
-  },
+  numpad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: Spacing.one },
   numpadBtn: {
     width: '31%',
     borderWidth: 1,
@@ -411,11 +445,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  numpadEmpty: {
-    width: '31%',
-  },
-  numpadDigit: {
-    fontSize: 20,
-    fontFamily: Fonts.numberBold,
-  },
+  numpadEmpty: { width: '31%' },
+  numpadDigit: { fontSize: 20, fontFamily: Fonts.numberBold },
 });

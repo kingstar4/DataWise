@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +15,7 @@ import { Card, HeroHeader, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
-import { useWallet } from '@/hooks/useWallet';
+import { useWalletContext } from '@/context/WalletContext';
 import type { Transaction } from '@/types/payments';
 
 // ── Theme-aware status colors ──────────────────────────────────────────────
@@ -49,7 +50,14 @@ export default function WalletScreen() {
   const txIconColors = useMemo(() => getTxIconColors(isDark), [isDark]);
   const walletIcon = useMemo(() => getWalletIcon(isDark), [isDark]);
 
-  const { balance, transactions } = useWallet();
+  const { balance, transactions, refetch } = useWalletContext();
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
   // Show only the latest 3 transactions
   const recentTx = useMemo(() => transactions.slice(0, 3), [transactions]);
@@ -82,10 +90,28 @@ export default function WalletScreen() {
     return theme.text;
   };
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
+
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.four }}>
+      contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.four }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor="#6366F1"
+          colors={['#6366F1']}
+          progressBackgroundColor={theme.card}
+        />
+      }>
       {/* ──── Hero with balance ──── */}
       <HeroHeader style={{ paddingTop: insets.top + Spacing.four }}>
         <View style={styles.heroTitleRow}>

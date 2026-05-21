@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card, ThemeToggle } from "@/components/ui";
+import { Card, SensitiveValue, ThemeToggle } from "@/components/ui";
 import {
   BorderRadius,
   BottomTabInset,
@@ -35,6 +35,16 @@ const QUICK_AMOUNTS = [1000, 2000, 3000, 5000] as const;
 WebBrowser.maybeCompleteAuthSession();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const PAYSTACK_CALLBACK_PATH = "/paystack-callback";
+
+function formatPlanSize(gb: number, name: string) {
+  if (gb >= 1) return `${gb.toLocaleString()} GB`;
+
+  const namedSize = name.match(/(\d+(?:\.\d+)?)\s*MB/i);
+  if (namedSize) return `${namedSize[1]} MB`;
+
+  return `${Math.round(gb * 1024).toLocaleString()} MB`;
+}
 
 function getVerificationMessage(verification: any) {
   const parts = [
@@ -108,6 +118,7 @@ export default function WalletFundScreen() {
     }),
     [params],
   );
+  const planSize = formatPlanSize(plan.gb, plan.name);
 
   // ── Amount selection ──
   const smartDefault = useMemo(() => {
@@ -154,8 +165,8 @@ export default function WalletFundScreen() {
     if (effectiveAmount <= 0)
       return `Need ₦${(plan.price - walletBalance).toLocaleString()} more for ${plan.name}`;
     if (canAfford)
-      return `New balance: ₦${newBalance.toLocaleString()} — ready to buy`;
-    return `New balance: ₦${newBalance.toLocaleString()} — need ₦${Math.abs(gap).toLocaleString()} more`;
+      return `Balance after top-up: ₦${newBalance.toLocaleString()} — ready to buy`;
+    return `Balance after top-up: ₦${newBalance.toLocaleString()} — need ₦${Math.abs(gap).toLocaleString()} more`;
   }, [
     effectiveAmount,
     canAfford,
@@ -202,13 +213,14 @@ export default function WalletFundScreen() {
 
     try {
       const startingBalance = walletBalance;
+      const callbackUrl = Linking.createURL(PAYSTACK_CALLBACK_PATH);
 
       const { data, error } = await supabase.functions.invoke(
         "initiate-topup",
         {
           body: {
             amount_ngn: effectiveAmount,
-            callback_url: Linking.createURL("/wallet"),
+            callback_url: callbackUrl,
           },
         },
       );
@@ -218,7 +230,7 @@ export default function WalletFundScreen() {
 
       await WebBrowser.openAuthSessionAsync(
         data.authorization_url,
-        Linking.createURL("/wallet"),
+        callbackUrl,
         {
           showTitle: true,
           enableBarCollapsing: true,
@@ -293,7 +305,7 @@ export default function WalletFundScreen() {
               : body.error;
             errorMessage += getVerificationMessage(body);
           }
-        } catch (_) {
+        } catch {
           // Fallback if parsing fails
         }
       }
@@ -337,13 +349,17 @@ export default function WalletFundScreen() {
           {walletLoading ? (
             <ActivityIndicator color="#10B981" style={{ marginVertical: 8 }} />
           ) : (
-            <Text style={styles.walletBalance}>
-              ₦{walletBalance.toLocaleString()}
-            </Text>
+            <SensitiveValue>
+              <Text style={styles.walletBalance}>
+                ₦{walletBalance.toLocaleString()}
+              </Text>
+            </SensitiveValue>
           )}
-          <Text style={[styles.walletSub, { color: theme.textMuted }]}>
-            {subtitleText}
-          </Text>
+          <SensitiveValue style={styles.walletSubtitleToggle}>
+            <Text style={[styles.walletSub, { color: theme.textMuted }]}>
+              {subtitleText}
+            </Text>
+          </SensitiveValue>
         </Card>
       </View>
 
@@ -358,7 +374,7 @@ export default function WalletFundScreen() {
           const amountNewBal = walletBalance + amount;
           const chipSub =
             plan.price > 0 && amountNewBal >= plan.price
-              ? `covers ${plan.gb} GB`
+              ? `covers ${planSize}`
               : "quick add";
 
           return (
@@ -474,7 +490,10 @@ export default function WalletFundScreen() {
         <Pressable
           onPress={handleConfirm}
           disabled={
-            initiating || waitingForCredit || walletLoading || effectiveAmount < 100
+            initiating ||
+            waitingForCredit ||
+            walletLoading ||
+            effectiveAmount < 100
           }
           style={({ pressed }) => [
             styles.ctaButton,
@@ -542,6 +561,7 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   walletSub: { fontSize: 12, fontFamily: Fonts.regular, marginTop: 4 },
+  walletSubtitleToggle: { maxWidth: "100%" },
   sectionLabel: {
     fontSize: 12,
     fontFamily: Fonts.semiBold,

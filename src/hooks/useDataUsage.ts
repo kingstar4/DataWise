@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import UsageAccess, {
     type AppDataUsageStat,
-    type DailyDataUsage,
     type PeakHourUsage,
 } from "@/native/UsageAccess";
 

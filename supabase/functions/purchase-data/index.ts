@@ -34,6 +34,140 @@ function applyMarkup(costNgn: number) {
   return Math.ceil(costNgn + profit);
 }
 
+function isSchemaCacheColumnError(error: any) {
+  const message = String(error?.message ?? "").toLowerCase();
+  return (
+    error?.code === "PGRST204" ||
+    (message.includes("could not find") && message.includes("schema cache"))
+  );
+}
+
+async function hashPin(userId: string, pin: string) {
+  const bytes = new TextEncoder().encode(`${userId}:${pin}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function normalizeNigerianPhone(raw: string) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("0") && digits.length === 11) return digits;
+  if (digits.startsWith("234") && digits.length === 13) return `0${digits.slice(3)}`;
+  return null;
+}
+
+async function insertPurchaseTransaction(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    amountKobo: number;
+    cheapDataHubId: number;
+    formattedPhone: string;
+    idempotencyKey?: string;
+    network?: string;
+    planId?: string;
+    planName: string;
+    retailPlan: {
+      costNgn: number;
+      retailNgn: number;
+    };
+    userId: string;
+    walletBefore: number;
+  },
+) {
+  const {
+    amountKobo,
+    cheapDataHubId,
+    formattedPhone,
+    idempotencyKey,
+    network,
+    planId,
+    planName,
+    retailPlan,
+    userId,
+    walletBefore,
+  } = params;
+  const walletAfter = walletBefore - amountKobo;
+  const legacyRecord = {
+    user_id: userId,
+    type: "data_purchase",
+    status: "pending",
+    amount: amountKobo,
+    plan_id: planId || null,
+    plan_name: planName,
+  };
+  const walletRecord = {
+    ...legacyRecord,
+    wallet_before: walletBefore,
+    wallet_after: walletAfter,
+  };
+  const metadata = {
+    cheap_datahub_id: cheapDataHubId,
+    network,
+    phone_number: formattedPhone,
+    plan_id: planId,
+    wholesale_price_ngn: retailPlan.costNgn,
+    retail_price_ngn: retailPlan.retailNgn,
+  };
+  const insertAttempts = [
+    {
+      ...walletRecord,
+      idempotency_key: idempotencyKey || null,
+      metadata,
+    },
+    {
+      ...walletRecord,
+      metadata,
+    },
+    walletRecord,
+    legacyRecord,
+  ];
+
+  let lastError = null;
+
+  for (const record of insertAttempts) {
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert(record)
+      .select("id")
+      .single();
+
+    if (!error && data) {
+      return { data, error: null };
+    }
+
+    lastError = error;
+    if (!isSchemaCacheColumnError(error)) {
+      break;
+    }
+  }
+
+  return { data: null, error: lastError };
+}
+
+async function updatePurchaseTransaction(
+  supabase: ReturnType<typeof createClient>,
+  transactionId: string,
+  update: Record<string, unknown>,
+) {
+  const { error } = await supabase
+    .from("transactions")
+    .update(update)
+    .eq("id", transactionId);
+
+  if (!error || !("metadata" in update) || !isSchemaCacheColumnError(error)) {
+    return error;
+  }
+
+  const { metadata: _metadata, ...legacyUpdate } = update;
+  const { error: legacyError } = await supabase
+    .from("transactions")
+    .update(legacyUpdate)
+    .eq("id", transactionId);
+
+  return legacyError;
+}
+
 async function getRetailPlan(cheapDataHubId: number) {
   const response = await fetch(PLAN_IDS_URL);
   if (!response.ok) return null;
@@ -114,7 +248,36 @@ serve(async (req) => {
       price_ngn,
       idempotency_key,
       cheap_datahub_id,
+      phone_number,
+      pin,
     } = body;
+
+    const formattedPhone = normalizeNigerianPhone(phone_number);
+    if (!formattedPhone) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Enter a valid Nigerian phone number.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (!/^\d{4}$/.test(String(pin ?? ""))) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Enter your 4-digit purchase PIN.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (!cheap_datahub_id) {
       return new Response(
@@ -143,18 +306,18 @@ serve(async (req) => {
       );
     }
 
-    // ── Get user's phone number from profile ──
+    // ── Verify user's purchase PIN ──
     const { data: profile, error: profileErr } = await supabaseUser
       .from("profiles")
-      .select("phone_number")
+      .select("purchase_pin_hash")
       .eq("user_id", user.id)
       .single();
 
-    if (profileErr || !profile?.phone_number) {
+    if (profileErr || !profile?.purchase_pin_hash) {
       return new Response(
         JSON.stringify({
           status: "error",
-          error: "Phone number not set. Please update your profile.",
+          error: "Purchase PIN not set. Please complete onboarding again.",
         }),
         {
           status: 400,
@@ -162,6 +325,25 @@ serve(async (req) => {
         },
       );
     }
+
+    const submittedPinHash = await hashPin(user.id, String(pin));
+    if (submittedPinHash !== profile.purchase_pin_hash) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Incorrect purchase PIN.",
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    await supabaseUser
+      .from("profiles")
+      .update({ phone_number: formattedPhone })
+      .eq("user_id", user.id);
 
     // ── Check & deduct wallet balance atomically ──
     const amountKobo = Math.round(retailPlan.retailNgn * 100);
@@ -212,28 +394,21 @@ serve(async (req) => {
     }
 
     // ── Create pending transaction ──
-    const { data: tx, error: txErr } = await supabaseUser
-      .from("transactions")
-      .insert({
-        user_id: user.id,
-        type: "data",
-        status: "pending",
-        amount: amountKobo,
-        plan_name: plan_name || retailPlan.planName || `Data ${network}`,
-        idempotency_key: idempotency_key || null,
-        wallet_before: wallet.balance,
-        wallet_after: wallet.balance - amountKobo,
-        metadata: {
-          cheap_datahub_id,
-          network,
-          phone_number: profile.phone_number,
-          plan_id,
-          wholesale_price_ngn: retailPlan.costNgn,
-          retail_price_ngn: retailPlan.retailNgn,
-        },
-      })
-      .select("id")
-      .single();
+    const { data: tx, error: txErr } = await insertPurchaseTransaction(
+      supabaseUser,
+      {
+        amountKobo,
+        cheapDataHubId: Number(cheap_datahub_id),
+        formattedPhone,
+        idempotencyKey: idempotency_key,
+        network,
+        planId: plan_id,
+        planName: plan_name || retailPlan.planName || `Data ${network}`,
+        retailPlan,
+        userId: user.id,
+        walletBefore: wallet.balance,
+      },
+    );
 
     if (txErr || !tx) {
       // Refund wallet on transaction creation failure
@@ -246,6 +421,8 @@ serve(async (req) => {
         JSON.stringify({
           status: "error",
           error: "Failed to create transaction",
+          details: txErr?.message,
+          code: txErr?.code,
         }),
         {
           status: 500,
@@ -267,7 +444,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             bundle_id: cheap_datahub_id,
-            phone_number: profile.phone_number,
+            phone_number: formattedPhone,
           }),
         },
       );
@@ -280,9 +457,7 @@ serve(async (req) => {
         .update({ balance: wallet.balance })
         .eq("user_id", user.id);
 
-      await supabaseUser
-        .from("transactions")
-        .update({
+      await updatePurchaseTransaction(supabaseUser, tx.id, {
           status: "failed",
           refunded: true,
           metadata: {
@@ -290,8 +465,7 @@ serve(async (req) => {
             cheap_datahub_id,
             network,
           },
-        })
-        .eq("id", tx.id);
+        });
 
       return new Response(
         JSON.stringify({
@@ -310,19 +484,16 @@ serve(async (req) => {
     // ── Handle CheapDataHub response ──
     if (cdhResponse.status === "true" || cdhResponse.status === true) {
       // Success — mark transaction as successful
-      await supabaseUser
-        .from("transactions")
-        .update({
+      await updatePurchaseTransaction(supabaseUser, tx.id, {
           status: "success",
           metadata: {
             cheap_datahub_id,
             network,
-            phone_number: profile.phone_number,
+            phone_number: formattedPhone,
             plan_id,
             cdh_reference: cdhResponse.reference || null,
           },
-        })
-        .eq("id", tx.id);
+        });
 
       return new Response(
         JSON.stringify({
@@ -343,9 +514,7 @@ serve(async (req) => {
         .update({ balance: wallet.balance })
         .eq("user_id", user.id);
 
-      await supabaseUser
-        .from("transactions")
-        .update({
+      await updatePurchaseTransaction(supabaseUser, tx.id, {
           status: "failed",
           refunded: true,
           metadata: {
@@ -354,8 +523,7 @@ serve(async (req) => {
             network,
             cdh_response: cdhResponse,
           },
-        })
-        .eq("id", tx.id);
+        });
 
       return new Response(
         JSON.stringify({

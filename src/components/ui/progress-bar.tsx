@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { BorderRadius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/context/ThemeContext';
 

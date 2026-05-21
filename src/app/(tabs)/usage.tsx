@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -11,6 +11,7 @@ import {
   InsightCard,
   ProgressBar,
   SegmentedControl,
+  SensitiveValue,
   SkeletonHeroValue,
   ThemeToggle,
 } from '@/components/ui';
@@ -36,7 +37,6 @@ export default function UsageScreen() {
     totalBackground,
     formattedForeground,
     formattedBackground,
-    grandTotal,
     dailyData,
     peakHours,
     isLoading,
@@ -94,10 +94,10 @@ export default function UsageScreen() {
           {isLoading ? (
             <SkeletonHeroValue />
           ) : (
-            <>
+            <SensitiveValue contentStyle={styles.heroValueContent}>
               <Text style={styles.heroNumber}>{heroDisplay.number}</Text>
               <Text style={styles.heroUnit}>{heroDisplay.unit}</Text>
-            </>
+            </SensitiveValue>
           )}
         </View>
 
@@ -131,9 +131,11 @@ export default function UsageScreen() {
               </View>
               <View>
                 <Text style={[styles.breakdownLabel, { color: theme.textMuted }]}>Mobile</Text>
-                <Text style={[styles.breakdownValue, { color: theme.text }]}>
-                  {formattedMobile}
-                </Text>
+                <SensitiveValue>
+                  <Text style={[styles.breakdownValue, { color: theme.text }]}>
+                    {formattedMobile}
+                  </Text>
+                </SensitiveValue>
               </View>
             </View>
 
@@ -143,9 +145,11 @@ export default function UsageScreen() {
               </View>
               <View>
                 <Text style={[styles.breakdownLabel, { color: theme.textMuted }]}>Wi-Fi</Text>
-                <Text style={[styles.breakdownValue, { color: theme.text }]}>
-                  {formattedWifi}
-                </Text>
+                <SensitiveValue>
+                  <Text style={[styles.breakdownValue, { color: theme.text }]}>
+                    {formattedWifi}
+                  </Text>
+                </SensitiveValue>
               </View>
             </View>
           </View>
@@ -190,9 +194,11 @@ export default function UsageScreen() {
                 <Ionicons name="phone-portrait-outline" size={14} color="#6366F1" />
                 <Text style={[styles.fgBgLabel, { color: theme.textMuted }]}>Foreground</Text>
               </View>
-              <Text style={[styles.fgBgValue, { color: theme.text }]}>
-                {formattedForeground}
-              </Text>
+              <SensitiveValue>
+                <Text style={[styles.fgBgValue, { color: theme.text }]}>
+                  {formattedForeground}
+                </Text>
+              </SensitiveValue>
               <ProgressBar
                 progress={fgRatio}
                 color="#6366F1"
@@ -211,9 +217,11 @@ export default function UsageScreen() {
                 <Ionicons name="moon-outline" size={14} color="#F59E0B" />
                 <Text style={[styles.fgBgLabel, { color: theme.textMuted }]}>Background</Text>
               </View>
-              <Text style={[styles.fgBgValue, { color: theme.text }]}>
-                {formattedBackground}
-              </Text>
+              <SensitiveValue>
+                <Text style={[styles.fgBgValue, { color: theme.text }]}>
+                  {formattedBackground}
+                </Text>
+              </SensitiveValue>
               <ProgressBar
                 progress={bgRatio}
                 color="#F59E0B"
@@ -275,13 +283,15 @@ export default function UsageScreen() {
                   </View>
                   <Text style={[styles.peakPeriod, { color: theme.text }]}>{hour.period}</Text>
                   <Text style={[styles.peakTime, { color: theme.textMuted }]}>{hour.time}</Text>
-                  <Text
-                    style={[
-                      styles.peakUsage,
-                      { color: hour.active ? '#6366F1' : theme.text },
-                    ]}>
-                    {hour.formattedTotal}
-                  </Text>
+                  <SensitiveValue>
+                    <Text
+                      style={[
+                        styles.peakUsage,
+                        { color: hour.active ? '#6366F1' : theme.text },
+                      ]}>
+                      {hour.formattedTotal}
+                    </Text>
+                  </SensitiveValue>
                 </LinearGradient>
               );
             })}
@@ -332,6 +342,11 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginBottom: Spacing.four,
     minHeight: 66,
+  },
+  heroValueContent: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    gap: Spacing.two,
   },
   heroNumber: {
     fontSize: 56,

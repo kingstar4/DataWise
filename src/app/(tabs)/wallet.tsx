@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card, HeroHeader, ThemeToggle } from '@/components/ui';
+import { Card, HeroHeader, SensitiveValue, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
@@ -117,7 +117,9 @@ export default function WalletScreen() {
         <View style={styles.heroTitleRow}>
           <View>
             <Text style={styles.heroLabel}>WALLET BALANCE</Text>
-            <Text style={styles.heroBalance}>₦{balance.toLocaleString()}</Text>
+            <SensitiveValue>
+              <Text style={styles.heroBalance}>₦{balance.toLocaleString()}</Text>
+            </SensitiveValue>
             <Text style={styles.heroSub}>
               Total spent: ₦{totalSpent.toLocaleString()}
             </Text>

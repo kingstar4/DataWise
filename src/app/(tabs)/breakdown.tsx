@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -11,13 +11,14 @@ import {
   HeroHeader,
   InsightCard,
   SearchInput,
+  SensitiveValue,
   SkeletonAppList,
   ThemeToggle,
 } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
-import { formatBytes, type FormattedAppData, PERIOD_MAP, useDataUsage } from '@/hooks/useDataUsage';
+import { formatBytes, type FormattedAppData, useDataUsage } from '@/hooks/useDataUsage';
 
 const FILTERS = ['All', 'Social', 'Streaming', 'Browser', 'System'];
 
@@ -190,7 +191,9 @@ export default function BreakdownScreen() {
               : ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
             style={styles.statPill}>
             <Text style={styles.statLabel}>Total Used</Text>
-            <Text style={styles.statValue}>{formattedTotal}</Text>
+            <SensitiveValue>
+              <Text style={styles.statValue}>{formattedTotal}</Text>
+            </SensitiveValue>
           </LinearGradient>
           <LinearGradient
             colors={isDark
@@ -198,7 +201,9 @@ export default function BreakdownScreen() {
               : ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
             style={styles.statPill}>
             <Text style={styles.statLabel}>Avg Daily</Text>
-            <Text style={styles.statValue}>{avgDaily}</Text>
+            <SensitiveValue>
+              <Text style={styles.statValue}>{avgDaily}</Text>
+            </SensitiveValue>
           </LinearGradient>
         </View>
       </HeroHeader>

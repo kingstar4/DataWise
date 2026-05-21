@@ -10,10 +10,19 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card } from '@/components/ui';
+import { Card, SensitiveValue } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
+
+function formatPlanSize(gb: number, name: string) {
+  if (gb >= 1) return `${gb.toLocaleString()} GB`;
+
+  const namedSize = name.match(/(\d+(?:\.\d+)?)\s*MB/i);
+  if (namedSize) return `${namedSize[1]} MB`;
+
+  return `${Math.round(gb * 1024).toLocaleString()} MB`;
+}
 
 export default function PurchaseSuccessScreen() {
   const theme = useTheme();
@@ -33,7 +42,6 @@ export default function PurchaseSuccessScreen() {
     projectedGB: string;
   }>();
 
-  const planName = params.planName ?? '';
   const planGb = Number(params.planGb) || 0;
   const planPrice = Number(params.planPrice) || 0;
   const planValidity = Number(params.planValidity) || 30;
@@ -41,6 +49,7 @@ export default function PurchaseSuccessScreen() {
   const remainingBalance = Number(params.remainingBalance) || 0;
   const carrierName = params.carrierName ?? 'Mobile';
   const projectedGB = Number(params.projectedGB) || 1;
+  const planSize = formatPlanSize(planGb, params.planName ?? '');
 
   // ── Computed values ──
   const expiryDate = useMemo(() => {
@@ -81,7 +90,7 @@ export default function PurchaseSuccessScreen() {
       {/* ──── Title ──── */}
       <Text style={[styles.successTitle, { color: theme.text }]}>Data activated!</Text>
       <Text style={[styles.successSub, { color: theme.textMuted }]}>
-        Your {planGb} GB {carrierName} plan is live.{'\n'}
+        Your {planSize} {carrierName} plan is live.{'\n'}
         DataWise will track your usage automatically.
       </Text>
 
@@ -90,7 +99,7 @@ export default function PurchaseSuccessScreen() {
         <View style={styles.receiptRow}>
           <Text style={[styles.receiptLabel, { color: theme.textMuted }]}>Plan</Text>
           <Text style={[styles.receiptValue, { color: theme.text }]}>
-            {planGb} GB {carrierName} monthly
+            {planSize} {carrierName} monthly
           </Text>
         </View>
         <View style={styles.receiptRow}>
@@ -109,9 +118,11 @@ export default function PurchaseSuccessScreen() {
         </View>
         <View style={[styles.receiptRow, styles.receiptRowLast, { borderTopColor: theme.border }]}>
           <Text style={[styles.receiptLabel, { color: theme.textMuted }]}>Remaining balance</Text>
-          <Text style={[styles.receiptValue, { color: '#818cf8' }]}>
-            ₦{remainingBalance.toLocaleString()}
-          </Text>
+          <SensitiveValue>
+            <Text style={[styles.receiptValue, { color: '#818cf8' }]}>
+              ₦{remainingBalance.toLocaleString()}
+            </Text>
+          </SensitiveValue>
         </View>
       </Card>
 
@@ -119,7 +130,7 @@ export default function PurchaseSuccessScreen() {
       <View style={[styles.refillCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Ionicons name="time-outline" size={18} color="#6366F1" />
         <Text style={[styles.refillText, { color: theme.textMuted }]}>
-          Based on your usage pattern, you'll likely need your next top-up
+          {"Based on your usage pattern, you'll likely need your next top-up"}
           around{' '}
           <Text style={[styles.refillDate, { color: theme.text }]}>{nextRefillDate}</Text>
         </Text>

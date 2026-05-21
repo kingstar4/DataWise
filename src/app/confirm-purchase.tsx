@@ -8,11 +8,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card, ThemeToggle } from '@/components/ui';
+import { Card, SensitiveValue, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useWalletContext } from '@/context/WalletContext';
@@ -28,6 +29,23 @@ const NUMPAD_KEYS = [
   '7', '8', '9',
   '', '0', 'del',
 ] as const;
+
+const formatPhoneNumber = (raw: string) => raw.replace(/\D/g, '');
+
+const isValidNigerianPhone = (raw: string) => {
+  const digits = raw.replace(/\D/g, '');
+  return (digits.startsWith('0') && digits.length === 11) ||
+    (digits.startsWith('234') && digits.length === 13);
+};
+
+const formatPlanSize = (gb: number, name: string) => {
+  if (gb >= 1) return `${gb.toLocaleString()} GB`;
+
+  const namedSize = name.match(/(\d+(?:\.\d+)?)\s*MB/i);
+  if (namedSize) return `${namedSize[1]} MB`;
+
+  return `${Math.round(gb * 1024).toLocaleString()} MB`;
+};
 
 export default function ConfirmPurchaseScreen() {
   const theme = useTheme();
@@ -71,6 +89,7 @@ export default function ConfirmPurchaseScreen() {
   const fundAmount = Number(params.fundAmount) || 0;
   const carrierName = params.carrierName ?? 'Mobile';
   const projectedGB = params.projectedGB ?? '0';
+  const planSize = formatPlanSize(plan.gb, plan.name);
 
   // ── Real wallet balance ──
   const { balance: walletBalance, deduct, addTransaction, refetch } = useWalletContext();
@@ -86,7 +105,7 @@ export default function ConfirmPurchaseScreen() {
   // When user returns from Paystack browser, refetch wallet to check if it was credited
   const [waitingForPayment, setWaitingForPayment] = useState(fundAmount > 0);
   const [paymentConfirmed, setPaymentConfirmed] = useState(fundAmount === 0);
-  const [pollCount, setPollCount] = useState(0);
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   useEffect(() => {
     if (!waitingForPayment) return;
@@ -95,7 +114,6 @@ export default function ConfirmPurchaseScreen() {
       if (nextState === 'active') {
         // User returned from browser — refetch wallet
         await refetch();
-        setPollCount((c) => c + 1);
       }
     });
 
@@ -136,6 +154,13 @@ export default function ConfirmPurchaseScreen() {
     if (newPin.length === 4) {
       setPinHint('Verifying...');
 
+      if (!isValidNigerianPhone(phoneNumber)) {
+        setPinHint('Enter a valid Nigerian phone number');
+        setPinError(true);
+        setPin([]);
+        return;
+      }
+
       // If payment not yet confirmed, show waiting message
       if (!paymentConfirmed) {
         setPinHint('Waiting for payment confirmation...');
@@ -145,7 +170,7 @@ export default function ConfirmPurchaseScreen() {
       }
 
       // Call real purchase edge function
-      const success = await purchase();
+      const success = await purchase(newPin.join(''), formatPhoneNumber(phoneNumber));
 
       if (success) {
         router.replace({
@@ -174,7 +199,7 @@ export default function ConfirmPurchaseScreen() {
       }
     }
   }, [
-    pin, isVerifying, paymentConfirmed, purchase,
+    pin, isVerifying, paymentConfirmed, purchase, phoneNumber,
     transactionId, remainingBalance, plan,
     router, carrierName, projectedGB, purchaseError,
   ]);
@@ -232,8 +257,8 @@ export default function ConfirmPurchaseScreen() {
 
         {/* ──── Plan summary hero ──── */}
         <Card style={styles.summaryCard}>
-          <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>You're buying</Text>
-          <Text style={styles.summaryAmount}>{plan.gb} GB</Text>
+          <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>{"You're buying"}</Text>
+          <Text style={styles.summaryAmount}>{planSize}</Text>
           <Text style={[styles.summaryNetwork, { color: theme.textMuted }]}>
             {carrierName} monthly plan
           </Text>
@@ -262,9 +287,11 @@ export default function ConfirmPurchaseScreen() {
           <View style={[styles.detailDivider, { backgroundColor: theme.border }]} />
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Wallet balance</Text>
-            <Text style={[styles.detailValue, { color: theme.text }]}>
-              ₦{walletBalance.toLocaleString()}
-            </Text>
+            <SensitiveValue>
+              <Text style={[styles.detailValue, { color: theme.text }]}>
+                ₦{walletBalance.toLocaleString()}
+              </Text>
+            </SensitiveValue>
           </View>
           <View style={[styles.detailDivider, { backgroundColor: theme.border }]} />
           <View style={styles.detailRow}>
@@ -276,15 +303,40 @@ export default function ConfirmPurchaseScreen() {
           <View style={[styles.detailDivider, { backgroundColor: theme.border }]} />
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Remaining balance</Text>
-            <Text style={[styles.detailValue, { color: '#10B981' }]}>
-              ₦{remainingBalance.toLocaleString()}
-            </Text>
+            <SensitiveValue>
+              <Text style={[styles.detailValue, { color: '#10B981' }]}>
+                ₦{remainingBalance.toLocaleString()}
+              </Text>
+            </SensitiveValue>
           </View>
           <View style={[styles.detailDivider, { backgroundColor: theme.border }]} />
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Delivery</Text>
             <Text style={[styles.detailValue, { color: '#10B981' }]}>Instant</Text>
           </View>
+        </Card>
+
+        <Card style={styles.phoneCard}>
+          <Text style={[styles.pinLabel, { color: theme.textMuted }]}>Delivery phone number</Text>
+          <TextInput
+            value={phoneNumber}
+            onChangeText={(value) => {
+              setPhoneNumber(value.replace(/[^\d+]/g, '').slice(0, 14));
+              setPinError(false);
+              setPinHint('Enter your 4-digit PIN to confirm');
+            }}
+            placeholder="08012345678"
+            placeholderTextColor={theme.textMuted}
+            keyboardType="phone-pad"
+            style={[
+              styles.phoneInput,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                color: theme.text,
+              },
+            ]}
+          />
         </Card>
 
         {/* ──── PIN Entry ──── */}
@@ -413,6 +465,14 @@ const styles = StyleSheet.create({
   detailLabel: { fontSize: 13, fontFamily: Fonts.regular },
   detailValue: { fontSize: 13, fontFamily: Fonts.numberSemiBold },
   detailDivider: { height: 1 },
+  phoneCard: { paddingVertical: Spacing.three },
+  phoneInput: {
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.md,
+    padding: 14,
+    fontSize: 15,
+    fontFamily: Fonts.numberRegular,
+  },
   pinCard: { paddingVertical: Spacing.three },
   pinLabel: { fontSize: 13, fontFamily: Fonts.semiBold, marginBottom: Spacing.two },
   pinDots: {

@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // ── Brand Colors ───────────────────────────────────────────────────────────
 
 const NAVY = "#1C2765";
-const BLUE = "#4F599E";
 const WHITE = "#FFFFFF";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -136,10 +135,10 @@ export default function UsagePermissionScreen({
                             1. Tap the button above to open Settings
                         </Text>
                         <Text style={styles.hintStep}>
-                            2. Find and tap "DataWise" in the list
+                            {'2. Find and tap "DataWise" in the list'}
                         </Text>
                         <Text style={styles.hintStep}>
-                            3. Toggle "Allow usage tracking" on
+                            {'3. Toggle "Allow usage tracking" on'}
                         </Text>
                         <Text style={styles.hintStep}>
                             4. Come back to this app — it will refresh automatically

@@ -5,6 +5,7 @@ import { ProgressBar } from './progress-bar';
 
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { SensitiveValue } from './sensitive-value';
 
 // ── Usage-based color thresholds ──
 const MB = 1024 * 1024;
@@ -89,7 +90,9 @@ export const AppUsageRow = React.memo(function AppUsageRow({
               </Text>
             )}
           </View>
-          <Text style={[styles.usage, { color: theme.text }]}>{usage}</Text>
+          <SensitiveValue>
+            <Text style={[styles.usage, { color: theme.text }]}>{usage}</Text>
+          </SensitiveValue>
         </View>
 
         <ProgressBar progress={progress} color={usageColor} height={5} />

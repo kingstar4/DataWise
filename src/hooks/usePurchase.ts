@@ -8,7 +8,7 @@ export type UsePurchaseReturn = {
   status: PurchaseStatus;
   error: string | null;
   transactionId: string | null;
-  purchase: () => Promise<boolean>;
+  purchase: (pin: string, phoneNumber: string) => Promise<boolean>;
   reset: () => void;
 };
 
@@ -23,7 +23,7 @@ export function usePurchase(
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const deductedRef = useRef(0);
 
-  const purchase = useCallback(async (): Promise<boolean> => {
+  const purchase = useCallback(async (pin: string, phoneNumber: string): Promise<boolean> => {
     if (!plan) {
       setError('No plan selected');
       setStatus('failed');
@@ -32,6 +32,18 @@ export function usePurchase(
 
     if (walletBalance < plan.price) {
       setError(`Insufficient balance. Need ₦${(plan.price - walletBalance).toLocaleString()} more.`);
+      setStatus('failed');
+      return false;
+    }
+
+    if (!/^\d{4}$/.test(pin)) {
+      setError('Enter your 4-digit purchase PIN');
+      setStatus('failed');
+      return false;
+    }
+
+    if (!phoneNumber) {
+      setError('Enter the phone number that should receive the data.');
       setStatus('failed');
       return false;
     }
@@ -55,10 +67,12 @@ export function usePurchase(
           price_ngn: plan.price,
           idempotency_key: idempotencyKey,
           cheap_datahub_id: plan.cheapDataHubId,
+          phone_number: phoneNumber,
+          pin,
         },
       });
 
-      if (fnError) throw new Error(fnError.message);
+      if (fnError) throw fnError;
 
       if (data.status === 'success') {
         setTransactionId(data.transaction_id);
@@ -111,9 +125,11 @@ export function usePurchase(
         try {
           const body = await e.context.json();
           if (body?.error) {
-            errorMessage = body.error;
+            errorMessage = body.details
+              ? `${body.error}: ${body.details}`
+              : body.error;
           }
-        } catch (_) {}
+        } catch {}
       }
 
       setError(errorMessage);

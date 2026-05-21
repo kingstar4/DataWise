@@ -1,11 +1,11 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeOut, Keyframe } from 'react-native-reanimated';
+import { Dimensions, StyleSheet, Text } from 'react-native';
+import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('screen');
+const { height: SCREEN_HEIGHT } = Dimensions.get('screen');
 const DURATION = 1200;
 
 /**

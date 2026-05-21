@@ -171,12 +171,39 @@ serve(async (req) => {
 
     const newBalance = wallet.balance + tx.amount;
 
+    const { data: claimedTx, error: claimErr } = await supabase
+      .from("transactions")
+      .update({ status: "success" })
+      .eq("id", tx.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr) {
+      return new Response(
+        JSON.stringify({ status: "error", error: "Failed to claim top-up transaction", details: claimErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (!claimedTx) {
+      return new Response(JSON.stringify({ status: "success", transaction_id: tx.id }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { error: walletUpdateErr } = await supabase
       .from("wallets")
       .update({ balance: newBalance })
       .eq("user_id", user.id);
 
     if (walletUpdateErr) {
+      await supabase
+        .from("transactions")
+        .update({ status: "pending" })
+        .eq("id", tx.id);
+
       return new Response(
         JSON.stringify({ status: "error", error: "Failed to credit wallet", details: walletUpdateErr.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },

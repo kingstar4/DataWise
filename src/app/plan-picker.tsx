@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Badge, Card, HeroHeader, InsightCard, ThemeToggle } from '@/components/ui';
+import { Badge, Card, HeroHeader, InsightCard, SensitiveValue, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useWalletContext } from '@/context/WalletContext';
-import { getMonthlyBundles, normalizeCarrierName } from '@/data/bundles';
+import { getBundlesForCarrier, getMonthlyBundles, normalizeCarrierName } from '@/data/bundles';
 import { useTheme } from '@/hooks/use-theme';
 import {
   projectMonthlyUsage,
@@ -22,6 +22,64 @@ import type { BundlePlan } from '@/types/payments';
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const GB = 1024 * 1024 * 1024;
+const ALL_PLANS_BATCH_SIZE = 8;
+
+function toBundlePlan(bundle: ReturnType<typeof getMonthlyBundles>[number]): BundlePlan {
+  return {
+    id: bundle.id,
+    name: bundle.name,
+    gb: bundle.dataGB,
+    price: bundle.priceNGN,
+    validity: bundle.validityDays,
+    ussdCode: bundle.ussdCode,
+    pricePerGb: bundle.costPerGB,
+    network: bundle.carrier,
+    cheapDataHubId: bundle.cheapDataHubId,
+  };
+}
+
+function getRecommendedPlans(plans: BundlePlan[], projectedGB: number) {
+  const bufferedGB = projectedGB * 1.2;
+  const covering = plans.filter((plan) => plan.gb >= bufferedGB);
+  const below = plans.filter((plan) => plan.gb < bufferedGB);
+  const recommended: BundlePlan[] = [];
+
+  recommended.push(...covering.slice(0, 2));
+
+  if (below.length > 0) {
+    recommended.push(below[below.length - 1]);
+  }
+
+  for (const plan of plans) {
+    if (recommended.length >= 3) break;
+    if (!recommended.some((item) => item.id === plan.id)) {
+      recommended.push(plan);
+    }
+  }
+
+  return recommended.slice(0, 3);
+}
+
+function formatPlanSize(plan: BundlePlan) {
+  if (plan.gb >= 1) {
+    return `${plan.gb.toLocaleString()} GB`;
+  }
+
+  const namedSize = plan.name.match(/(\d+(?:\.\d+)?)\s*MB/i);
+  if (namedSize) {
+    return `${namedSize[1]} MB`;
+  }
+
+  return `${Math.round(plan.gb * 1024).toLocaleString()} MB`;
+}
+
+function getValueLabel(plan: BundlePlan) {
+  if (plan.gb < 1) {
+    return plan.validity <= 2 ? 'daily plan' : 'small plan';
+  }
+
+  return `₦${plan.pricePerGb.toLocaleString()}/GB`;
+}
 
 export default function PlanPickerScreen() {
   const theme = useTheme();
@@ -42,7 +100,20 @@ export default function PlanPickerScreen() {
   const carrierId = useMemo(() => normalizeCarrierName(carrierName), [carrierName]);
 
   // ── Usage projection ──
-  const { grandTotal } = useDataUsage('week');
+  const { grandTotal, isLoading: usageLoading } = useDataUsage('week');
+  const [usageLoadStarted, setUsageLoadStarted] = useState(false);
+  const [usageSettled, setUsageSettled] = useState(false);
+
+  useEffect(() => {
+    if (usageLoading) {
+      setUsageLoadStarted(true);
+      return;
+    }
+
+    if (usageLoadStarted) {
+      setUsageSettled(true);
+    }
+  }, [usageLoadStarted, usageLoading]);
   const projectedMonthlyBytes = useMemo(
     () => projectMonthlyUsage(grandTotal, 'week'),
     [grandTotal],
@@ -95,12 +166,17 @@ export default function PlanPickerScreen() {
   }, [carrierId, projectedGB]);
 
   const [livePlans, setLivePlans] = useState<BundlePlan[]>([]);
-  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansLoading, setPlansLoading] = useState(true);
   const [plansError, setPlansError] = useState<string | null>(null);
+  const [showAllPlans, setShowAllPlans] = useState(false);
+  const [allPlans, setAllPlans] = useState<BundlePlan[]>([]);
+  const [allPlansLoading, setAllPlansLoading] = useState(false);
+  const [allPlansError, setAllPlansError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (!carrierId) {
       setLivePlans([]);
+      setPlansLoading(false);
       return;
     }
 
@@ -120,7 +196,7 @@ export default function PlanPickerScreen() {
         setPlansError(data?.error ?? error?.message ?? 'Could not load live plans');
         setLivePlans([]);
       } else {
-        setLivePlans((data.plans ?? []).slice(0, 8));
+        setLivePlans(data.plans ?? []);
       }
 
       setPlansLoading(false);
@@ -133,7 +209,48 @@ export default function PlanPickerScreen() {
     };
   }, [carrierId]);
 
-  const plans = livePlans.length > 0 ? livePlans : fallbackPlans;
+  const recommendedSource = livePlans.length > 0 ? livePlans : fallbackPlans;
+  const recommendedPlans = useMemo(
+    () => getRecommendedPlans(recommendedSource, projectedGB),
+    [projectedGB, recommendedSource],
+  );
+  const localAllPlans = useMemo(() => {
+    if (!carrierId) return [];
+    return getBundlesForCarrier(carrierId).map(toBundlePlan);
+  }, [carrierId]);
+  const plans = showAllPlans ? allPlans : recommendedPlans;
+  const recommendationsLoading = plansLoading || !usageSettled;
+
+  const loadAllPlans = useCallback(async () => {
+    if (!carrierId) return;
+
+    setShowAllPlans(true);
+    if (allPlans.length > 0) return;
+
+    setAllPlansLoading(true);
+    setAllPlansError(null);
+
+    const { data, error } = await supabase.functions.invoke('get-data-plans', {
+      body: { network: carrierId },
+    });
+
+    if (error || data?.status !== 'success') {
+      setAllPlans(localAllPlans);
+      setAllPlansError(
+        data?.error ?? error?.message ?? 'Could not load every live plan',
+      );
+    } else {
+      setAllPlans(data.plans ?? []);
+    }
+
+    setAllPlansLoading(false);
+  }, [allPlans.length, carrierId, localAllPlans]);
+
+  useEffect(() => {
+    setAllPlans([]);
+    setAllPlansError(null);
+    setShowAllPlans(false);
+  }, [carrierId]);
 
   // ── Best value plan (lowest pricePerGb that covers projected usage) ──
   const bestValueId = useMemo(() => {
@@ -148,11 +265,11 @@ export default function PlanPickerScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Auto-select best value on first render
-  React.useEffect(() => {
-    if (bestValueId && selectedId === null) {
+  useEffect(() => {
+    if (bestValueId && !plans.some((plan) => plan.id === selectedId)) {
       setSelectedId(bestValueId);
     }
-  }, [bestValueId, selectedId]);
+  }, [bestValueId, plans, selectedId]);
 
   const selectedPlan = useMemo(
     () => plans.find((p) => p.id === selectedId) ?? null,
@@ -172,7 +289,11 @@ export default function PlanPickerScreen() {
     if (!selectedPlan) return '';
     const buffer = selectedPlan.gb - projectedGB;
     if (buffer > 0) {
-      return `Your projected usage is ${projectedGB} GB/month. The ${selectedPlan.name} gives you a ${buffer.toFixed(1)} GB buffer at ₦${selectedPlan.pricePerGb}/GB — the best rate for your usage pattern.`;
+      const valueCopy =
+        selectedPlan.gb >= 1
+          ? ` at ₦${selectedPlan.pricePerGb.toLocaleString()}/GB`
+          : '';
+      return `Your projected usage is ${projectedGB} GB/month. The ${selectedPlan.name} gives you a ${buffer.toFixed(1)} GB buffer${valueCopy} — the best fit for your usage pattern.`;
     }
     return `Your projected usage is ${projectedGB} GB/month. This plan may run short. Consider upgrading for a comfortable buffer.`;
   }, [selectedPlan, projectedGB]);
@@ -212,6 +333,193 @@ export default function PlanPickerScreen() {
     }
   }, [selectedPlan, router, carrierName, projectedGB, walletBalance]);
 
+  const renderPlan = useCallback(({ item: plan }: { item: BundlePlan }) => {
+    const isSelected = selectedId === plan.id;
+    const isBestValue = !showAllPlans && plan.id === bestValueId;
+    const status = getStatus(plan);
+
+    return (
+      <Pressable
+        onPress={() => setSelectedId(plan.id)}
+        style={showAllPlans && styles.allPlanItem}
+      >
+        <Card
+          style={[
+            styles.planCard,
+            isSelected && {
+              borderColor: '#6366F1',
+              borderWidth: 1.5,
+            },
+          ]}>
+          {isBestValue && (
+            <View style={styles.bestValueBadge}>
+              <Text style={styles.bestValueText}>Best value</Text>
+            </View>
+          )}
+
+          <View style={styles.planRow}>
+            <View style={styles.planInfo}>
+              <Text style={[styles.planName, { color: theme.text }]}>
+                {showAllPlans ? plan.name : `${formatPlanSize(plan)} monthly`}
+              </Text>
+              <View style={styles.planTags}>
+                <View style={[styles.tagPill, { backgroundColor: isDark ? '#0d1626' : theme.surfaceAlt }]}>
+                  <Text style={[styles.tagText, { color: theme.textMuted }]}>{plan.validity} days</Text>
+                </View>
+                <View style={[styles.tagPill, { backgroundColor: isDark ? '#0d1626' : theme.surfaceAlt }]}>
+                  <Text style={[styles.tagText, { color: theme.textMuted }]}>
+                    {getValueLabel(plan)}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.tagPill,
+                    {
+                      backgroundColor:
+                        status === 'covers'
+                          ? (isDark ? '#0a1f18' : '#ecfdf5')
+                          : (isDark ? '#1f0a12' : '#fdf2f8'),
+                    },
+                  ]}>
+                  <Text
+                    style={[
+                      styles.tagText,
+                      {
+                        color: status === 'covers' ? '#10B981' : '#EC4899',
+                      },
+                    ]}>
+                    {status === 'covers' ? 'covers your usage' : 'may run short'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.planRight}>
+              <Text style={styles.planPrice}>₦{plan.price.toLocaleString()}</Text>
+              <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                {isSelected && <View style={styles.radioDot} />}
+              </View>
+            </View>
+          </View>
+        </Card>
+      </Pressable>
+    );
+  }, [bestValueId, getStatus, isDark, selectedId, showAllPlans, theme]);
+
+  if (showAllPlans) {
+    return (
+      <FlatList
+        data={allPlansLoading ? [] : allPlans}
+        renderItem={renderPlan}
+        keyExtractor={(plan) => plan.id}
+        style={[styles.scrollView, { backgroundColor: theme.background }]}
+        contentContainerStyle={styles.allPlansContent}
+        ItemSeparatorComponent={() => <View style={{ height: Spacing.three }} />}
+        initialNumToRender={ALL_PLANS_BATCH_SIZE}
+        maxToRenderPerBatch={ALL_PLANS_BATCH_SIZE}
+        updateCellsBatchingPeriod={40}
+        windowSize={7}
+        ListHeaderComponent={
+          <>
+            <HeroHeader style={{ paddingTop: insets.top + Spacing.four }}>
+              <View style={styles.heroTitleRow}>
+                <View>
+                  <Text style={styles.heroTag}>Projected this month</Text>
+                  <SensitiveValue>
+                    <Text style={styles.heroValue}>{projectedGB} GB</Text>
+                  </SensitiveValue>
+                  <Text style={styles.heroSub}>Based on your last 7 days</Text>
+                </View>
+                <View style={styles.heroActions}>
+                  <ThemeToggle variant="hero" />
+                  <Pressable onPress={() => router.back()} style={styles.closeBtn}>
+                    <Ionicons name="close" size={20} color="rgba(255,255,255,0.6)" />
+                  </Pressable>
+                </View>
+              </View>
+              <Badge variant="secondary" label={`${carrierName} detected`} />
+            </HeroHeader>
+
+            <View style={[styles.contentArea, styles.allPlansHeader, { marginTop: -Spacing.four }]}>
+              <View
+                style={[
+                  styles.sectionTitleRow,
+                  styles.planSectionHeader,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}>
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>
+                  ALL {carrierId ?? 'NETWORK'} PLANS
+                </Text>
+                <Pressable
+                  onPress={() => setShowAllPlans(false)}
+                  style={({ pressed }) => [
+                    styles.inlineButton,
+                    {
+                      backgroundColor: theme.surfaceAlt,
+                      borderColor: isDark ? '#6366F1' : '#C7D2FE',
+                    },
+                    pressed && { opacity: 0.78 },
+                  ]}>
+                  <Text style={[styles.inlineButtonText, { color: theme.text }]}>
+                    Recommended
+                  </Text>
+                </Pressable>
+              </View>
+
+              {allPlansError && (
+                <Text style={[styles.fallbackText, { color: theme.textMuted }]}>
+                  Live catalog unavailable. Showing saved plans for this network.
+                </Text>
+              )}
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          <View style={[styles.contentArea, styles.emptyPlans]}>
+            {allPlansLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color="#6366F1" />
+                <Text style={[styles.loadingText, { color: theme.textMuted }]}>
+                  Loading all available plans...
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.fallbackText, { color: theme.textMuted }]}>
+                No plans are available for this network right now.
+              </Text>
+            )}
+          </View>
+        }
+        ListFooterComponent={
+          <View style={styles.allPlansFooter}>
+            {selectedPlan && (
+              <InsightCard
+                title={`Why ${formatPlanSize(selectedPlan)}?`}
+                message={insightMessage}
+                accentColor="#6366F1"
+              />
+            )}
+
+            <Pressable
+              onPress={handleContinue}
+              disabled={!selectedPlan}
+              style={({ pressed }) => [
+                styles.ctaButton,
+                !selectedPlan && styles.ctaDisabled,
+                pressed && selectedPlan && { opacity: 0.85 },
+              ]}>
+              <Text style={styles.ctaText}>
+                {selectedPlan
+                  ? `Buy ${formatPlanSize(selectedPlan)} for ₦${selectedPlan.price.toLocaleString()}`
+                  : 'Select a plan to continue'}
+              </Text>
+            </Pressable>
+          </View>
+        }
+      />
+    );
+  }
+
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
@@ -221,7 +529,9 @@ export default function PlanPickerScreen() {
         <View style={styles.heroTitleRow}>
           <View>
             <Text style={styles.heroTag}>Projected this month</Text>
-            <Text style={styles.heroValue}>{projectedGB} GB</Text>
+            <SensitiveValue>
+              <Text style={styles.heroValue}>{projectedGB} GB</Text>
+            </SensitiveValue>
             <Text style={styles.heroSub}>Based on your last 7 days</Text>
           </View>
           <View style={styles.heroActions}>
@@ -236,28 +546,50 @@ export default function PlanPickerScreen() {
 
       {/* ──── Content Area ──── */}
       <View style={[styles.contentArea, { marginTop: -Spacing.four }]}>
-        {/* Section label */}
-        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
-          RECOMMENDED PLANS
-        </Text>
+        <View
+          style={[
+            styles.sectionTitleRow,
+            styles.planSectionHeader,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}>
+          <Text style={[styles.sectionLabel, { color: theme.text }]}>
+            RECOMMENDED PLANS
+          </Text>
+          <Pressable
+            onPress={loadAllPlans}
+            disabled={!carrierId || allPlansLoading}
+            style={({ pressed }) => [
+              styles.inlineButton,
+              {
+                backgroundColor: theme.surfaceAlt,
+                borderColor: isDark ? '#6366F1' : '#C7D2FE',
+              },
+              pressed && { opacity: 0.78 },
+              (!carrierId || allPlansLoading) && { opacity: 0.5 },
+            ]}>
+            <Text style={[styles.inlineButtonText, { color: theme.text }]}>
+              {allPlansLoading ? 'Loading...' : 'View all plans'}
+            </Text>
+          </Pressable>
+        </View>
 
-        {plansLoading && (
+        {recommendationsLoading && (
           <View style={styles.loadingRow}>
             <ActivityIndicator color="#6366F1" />
             <Text style={[styles.loadingText, { color: theme.textMuted }]}>
-              Loading live plans...
+              Preparing recommendations...
             </Text>
           </View>
         )}
 
-        {!plansLoading && plansError && (
+        {!recommendationsLoading && plansError && (
           <Text style={[styles.fallbackText, { color: theme.textMuted }]}>
             Live prices unavailable. Showing saved plans.
           </Text>
         )}
 
         {/* Plan cards */}
-        {plans.map((plan) => {
+        {!recommendationsLoading && plans.map((plan) => {
           const isSelected = selectedId === plan.id;
           const isBestValue = plan.id === bestValueId;
           const status = getStatus(plan);
@@ -282,7 +614,7 @@ export default function PlanPickerScreen() {
                 <View style={styles.planRow}>
                   <View style={styles.planInfo}>
                     <Text style={[styles.planName, { color: theme.text }]}>
-                      {plan.gb} GB monthly
+                      {formatPlanSize(plan)} monthly
                     </Text>
                     <View style={styles.planTags}>
                       <View style={[styles.tagPill, { backgroundColor: isDark ? '#0d1626' : theme.surfaceAlt }]}>
@@ -290,7 +622,7 @@ export default function PlanPickerScreen() {
                       </View>
                       <View style={[styles.tagPill, { backgroundColor: isDark ? '#0d1626' : theme.surfaceAlt }]}>
                         <Text style={[styles.tagText, { color: theme.textMuted }]}>
-                          ₦{plan.pricePerGb}/GB
+                          {getValueLabel(plan)}
                         </Text>
                       </View>
                       <View
@@ -340,7 +672,7 @@ export default function PlanPickerScreen() {
         {/* Insight card */}
         {selectedPlan && (
           <InsightCard
-            title={`Why ${selectedPlan.gb} GB?`}
+            title={`Why ${formatPlanSize(selectedPlan)}?`}
             message={insightMessage}
             accentColor="#6366F1"
           />
@@ -357,7 +689,7 @@ export default function PlanPickerScreen() {
           ]}>
           <Text style={styles.ctaText}>
             {selectedPlan
-              ? `Buy ${selectedPlan.gb} GB for ₦${selectedPlan.price.toLocaleString()}`
+              ? `Buy ${formatPlanSize(selectedPlan)} for ₦${selectedPlan.price.toLocaleString()}`
               : 'Select a plan to continue'}
           </Text>
         </Pressable>
@@ -429,12 +761,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     gap: Spacing.three,
   },
+  allPlansContent: {
+    paddingBottom: BottomTabInset + Spacing.four,
+  },
+  allPlansHeader: {
+    paddingBottom: Spacing.three,
+  },
+  allPlanItem: {
+    paddingHorizontal: Spacing.three,
+  },
+  allPlansFooter: {
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+  },
+  emptyPlans: {
+    paddingBottom: Spacing.four,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  planSectionHeader: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: Spacing.two,
+  },
   sectionLabel: {
+    flex: 1,
     fontSize: 12,
     fontFamily: Fonts.semiBold,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: -Spacing.one,
+  },
+  inlineButton: {
+    alignItems: 'center',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 36,
+    paddingHorizontal: 12,
+  },
+  inlineButtonText: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
   },
   loadingRow: {
     flexDirection: 'row',

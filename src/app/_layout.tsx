@@ -21,9 +21,12 @@ import { ActivityIndicator, View } from 'react-native';
 import AuthScreen from '@/app/auth';
 import OnboardingScreen from '@/app/onboarding';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import NetworkErrorScreen from '@/components/network-error-screen';
 import UsagePermissionScreen from '@/components/permission-screen';
 import { ThemeProvider, useNavTheme } from '@/context/ThemeContext';
+import { SensitiveValuesProvider } from '@/context/SensitiveValuesContext';
 import { WalletProvider } from '@/context/WalletContext';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useUsagePermission } from '@/hooks/useUsagePermission';
 import { supabase } from '@/lib/supabase';
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -43,7 +46,7 @@ function AppContent() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [hasPhone, setHasPhone] = useState(false);
+  const [hasPurchasePin, setHasPurchasePin] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
@@ -74,10 +77,10 @@ function AppContent() {
     };
   }, []);
 
-  // Check profile for phone number whenever session changes
+  // Check profile for purchase PIN whenever session changes
   useEffect(() => {
     if (!session) {
-      setHasPhone(false);
+      setHasPurchasePin(false);
       return;
     }
 
@@ -86,12 +89,12 @@ function AppContent() {
 
     supabase
       .from('profiles')
-      .select('phone_number')
+      .select('purchase_pin_set')
       .eq('user_id', session.user.id)
       .single()
       .then(({ data }) => {
         if (mounted) {
-          setHasPhone(!!data?.phone_number);
+          setHasPurchasePin(!!data?.purchase_pin_set);
           setProfileLoading(false);
         }
       });
@@ -117,16 +120,16 @@ function AppContent() {
     );
   }
 
-  // Signed in but no phone number yet
-  if (!hasPhone) {
+  // Signed in but no purchase PIN yet
+  if (!hasPurchasePin) {
     return (
       <NavThemeProvider value={navTheme}>
-        <OnboardingScreen onComplete={() => setHasPhone(true)} />
+        <OnboardingScreen onComplete={() => setHasPurchasePin(true)} />
       </NavThemeProvider>
     );
   }
 
-  // Signed in, has phone, but no usage permission
+  // Signed in, has purchase PIN, but no usage permission
   if (!hasPermission) {
     return (
       <NavThemeProvider value={navTheme}>
@@ -141,16 +144,19 @@ function AppContent() {
   // All good — main app
   return (
     <NavThemeProvider value={navTheme}>
-      <WalletProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="plan-picker" />
-          <Stack.Screen name="wallet-fund" />
-          <Stack.Screen name="confirm-purchase" />
-          <Stack.Screen name="purchase-success" />
-          <Stack.Screen name="transactions" />
-        </Stack>
-      </WalletProvider>
+      <SensitiveValuesProvider>
+        <WalletProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="plan-picker" />
+            <Stack.Screen name="wallet-fund" />
+            <Stack.Screen name="paystack-callback" />
+            <Stack.Screen name="confirm-purchase" />
+            <Stack.Screen name="purchase-success" />
+            <Stack.Screen name="transactions" />
+          </Stack>
+        </WalletProvider>
+      </SensitiveValuesProvider>
     </NavThemeProvider>
   );
 }
@@ -167,8 +173,9 @@ export default function RootLayout() {
     SpaceGrotesk_600SemiBold,
     SpaceGrotesk_700Bold,
   });
+  const { isChecking, isOnline, refresh } = useNetworkStatus();
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || isChecking) {
     return (
       <View
         style={{
@@ -181,6 +188,10 @@ export default function RootLayout() {
         <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
+  }
+
+  if (!isOnline) {
+    return <NetworkErrorScreen isChecking={isChecking} onRetry={refresh} />;
   }
 
   return (

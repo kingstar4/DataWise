@@ -3,6 +3,7 @@ export { Badge, type BadgeProps, type BadgeVariant } from './badge';
 export { ProgressBar, type ProgressBarProps } from './progress-bar';
 export { InsightCard, type InsightCardProps } from './insight-card';
 export { AppUsageRow, type AppUsageRowProps } from './app-usage-row';
+export { SensitiveValue, type SensitiveValueProps } from './sensitive-value';
 export { StatBox, type StatBoxProps } from './stat-box';
 export { FilterChip, type FilterChipProps } from './filter-chip';
 export { SearchInput, type SearchInputProps } from './search-input';

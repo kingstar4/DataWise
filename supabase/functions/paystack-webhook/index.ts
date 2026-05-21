@@ -76,13 +76,36 @@ serve(async (req) => {
     // ── Check if transaction already processed (idempotency) ──
     const { data: existingTx } = await supabase
       .from("transactions")
-      .select("id, status")
+      .select("id, status, type")
       .eq("id", transactionId)
       .single();
 
     if (existingTx?.status === "success") {
       // Already processed — skip
       console.log("Transaction already processed:", transactionId);
+      return new Response("OK", { status: 200 });
+    }
+
+    if (!existingTx || existingTx.type !== "wallet_topup") {
+      console.error("Top-up transaction not found for webhook:", transactionId);
+      return new Response("OK", { status: 200 });
+    }
+
+    const { data: claimedTx, error: claimErr } = await supabase
+      .from("transactions")
+      .update({ status: "success" })
+      .eq("id", transactionId)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr) {
+      console.error("Failed to claim top-up transaction:", claimErr);
+      return new Response("Retry", { status: 500 });
+    }
+
+    if (!claimedTx) {
+      console.log("Transaction already claimed:", transactionId);
       return new Response("OK", { status: 200 });
     }
 
@@ -95,6 +118,10 @@ serve(async (req) => {
 
     if (walletErr || !wallet) {
       console.error("Wallet not found for user:", userId);
+      await supabase
+        .from("transactions")
+        .update({ status: "pending" })
+        .eq("id", transactionId);
       return new Response("OK", { status: 200 });
     }
 
@@ -107,6 +134,10 @@ serve(async (req) => {
 
     if (updateErr) {
       console.error("Failed to credit wallet:", updateErr);
+      await supabase
+        .from("transactions")
+        .update({ status: "pending" })
+        .eq("id", transactionId);
       return new Response("Retry", { status: 500 });
     }
 

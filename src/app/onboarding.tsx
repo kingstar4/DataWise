@@ -1,51 +1,55 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator, KeyboardAvoidingView,
+    ActivityIndicator,
+    KeyboardAvoidingView,
     Platform,
     StyleSheet,
-    Text, TextInput, TouchableOpacity,
+    Text,
+    TextInput,
+    TouchableOpacity,
     View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 export default function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
-    const [phone, setPhone] = useState('');
+    const [pin, setPin] = useState('');
+    const [confirmPin, setConfirmPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const formatPhone = (raw: string) => {
-        const digits = raw.replace(/\D/g, '');
-        if (digits.startsWith('0') && digits.length === 11)
-            return `+234${digits.slice(1)}`;
-        if (digits.startsWith('234')) return `+${digits}`;
-        return raw;
-    };
-
     const save = async () => {
         setError('');
-        const digits = phone.replace(/\D/g, '');
-        if (digits.length < 10) {
-            setError('Enter a valid Nigerian phone number');
+
+        if (!/^\d{4}$/.test(pin)) {
+            setError('Create a 4-digit purchase PIN');
+            return;
+        }
+
+        if (pin !== confirmPin) {
+            setError('PINs do not match');
             return;
         }
 
         setLoading(true);
-        const formatted = formatPhone(phone);
 
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setError('Session expired. Please sign in again.'); setLoading(false); return; }
+        if (!user) {
+            setError('Session expired. Please sign in again.');
+            setLoading(false);
+            return;
+        }
 
-        // upsert instead of update — creates the row if it doesn't exist
-        const { error } = await supabase
-            .from('profiles')
-            .upsert(
-                { user_id: user.id, phone_number: formatted },
-                { onConflict: 'user_id' }
-            );
+        const { error } = await supabase.functions.invoke('set-purchase-pin', {
+            body: { pin },
+        });
 
         setLoading(false);
-        if (error) { setError(error.message); return; }
+        if (error) {
+            setError(error.message);
+            return;
+        }
+
         onComplete();
     };
 
@@ -61,20 +65,32 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 </View>
 
                 <View style={styles.card}>
-                    <Text style={styles.title}>Your data number</Text>
+                    <Text style={styles.title}>Create your purchase PIN</Text>
                     <Text style={styles.subtitle}>
-                        Which phone number should we deliver purchased data bundles to?
-                        This is saved to your account and can be changed anytime.
+                        Use this 4-digit PIN whenever you buy data from your wallet.
+                        You will enter the delivery phone number only when purchasing.
                     </Text>
 
                     <TextInput
                         style={styles.input}
-                        placeholder="08012345678"
+                        placeholder="Create PIN"
                         placeholderTextColor="#4a5568"
-                        keyboardType="phone-pad"
-                        value={phone}
-                        onChangeText={setPhone}
-                        maxLength={14}
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        value={pin}
+                        onChangeText={(value) => setPin(value.replace(/\D/g, '').slice(0, 4))}
+                        maxLength={4}
+                    />
+
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Confirm PIN"
+                        placeholderTextColor="#4a5568"
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        value={confirmPin}
+                        onChangeText={(value) => setConfirmPin(value.replace(/\D/g, '').slice(0, 4))}
+                        maxLength={4}
                     />
 
                     {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -92,7 +108,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 </View>
 
                 <Text style={styles.note}>
-                    💡 Data bundles are delivered instantly to this number after purchase
+                    Your phone number is requested at checkout so you can buy for any line.
                 </Text>
             </KeyboardAvoidingView>
         </LinearGradient>

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemeToggle } from '@/components/ui';
+import { SensitiveValue, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useWalletContext } from '@/context/WalletContext';
@@ -187,9 +187,11 @@ export default function TransactionsScreen() {
         </View>
         <View style={[styles.summaryCell, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>Wallet balance</Text>
-          <Text style={[styles.summaryValue, { color: '#10B981' }]}>
-            ₦{balance.toLocaleString()}
-          </Text>
+          <SensitiveValue>
+            <Text style={[styles.summaryValue, { color: '#10B981' }]}>
+              ₦{balance.toLocaleString()}
+            </Text>
+          </SensitiveValue>
         </View>
         <View style={[styles.summaryCell, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.summaryLabel, { color: theme.textMuted }]}>Saved vs ad-hoc</Text>

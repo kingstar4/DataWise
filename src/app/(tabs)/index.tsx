@@ -11,6 +11,7 @@ import {
   HeroHeader,
   InsightCard,
   SegmentedControl,
+  SensitiveValue,
   SkeletonHeroValue,
   SkeletonAppList,
   ThemeToggle,
@@ -153,10 +154,10 @@ export default function HomeScreen() {
           {isLoading ? (
             <SkeletonHeroValue />
           ) : (
-            <View style={styles.heroValueWrap}>
+            <SensitiveValue contentStyle={styles.heroValueWrap}>
               <Text style={styles.heroNumber}>{heroDisplay.number}</Text>
               <Text style={styles.heroUnit}>{heroDisplay.unit}</Text>
-            </View>
+            </SensitiveValue>
           )}
         </View>
 

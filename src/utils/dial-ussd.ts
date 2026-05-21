@@ -32,7 +32,7 @@ export async function dialUSSD(
     }
 
     await Linking.openURL(encoded);
-  } catch (error) {
+  } catch {
     Alert.alert(
       'Dial Error',
       `Could not open the dialer.\n\nPlease manually dial: ${ussdCode}`,

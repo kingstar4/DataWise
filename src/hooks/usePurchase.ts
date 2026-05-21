@@ -17,6 +17,7 @@ export function usePurchase(
   walletBalance: number,
   deduct: (amount: number) => void,
   addTransaction: (tx: Transaction) => void,
+  refetchWallet?: () => Promise<void>,
 ): UsePurchaseReturn {
   const [status, setStatus] = useState<PurchaseStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -91,10 +92,10 @@ export function usePurchase(
         return true;
 
       } else {
-        // Edge function returned failure — wallet already restored server-side
-        // Undo our optimistic deduction
+        // Undo locally, then fetch the server wallet in case a refund needs review.
         deduct(-deductedRef.current);
         deductedRef.current = 0;
+        await refetchWallet?.();
 
         const errorMsg = data.error ?? 'Purchase failed. Your wallet has been refunded.';
         setError(errorMsg);
@@ -118,6 +119,7 @@ export function usePurchase(
       // Undo optimistic deduction
       deduct(-deductedRef.current);
       deductedRef.current = 0;
+      await refetchWallet?.();
 
       let errorMessage = 'Connection error. Please try again — your wallet has not been charged.';
       
@@ -147,7 +149,7 @@ export function usePurchase(
 
       return false;
     }
-  }, [plan, walletBalance, deduct, addTransaction]);
+  }, [plan, walletBalance, deduct, addTransaction, refetchWallet]);
 
   const reset = useCallback(() => {
     setStatus('idle');

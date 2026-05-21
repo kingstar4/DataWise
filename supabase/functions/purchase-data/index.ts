@@ -57,6 +57,133 @@ function normalizeNigerianPhone(raw: string) {
   return null;
 }
 
+function getProviderFailureMessage(providerMessage: string, refundMessage: string) {
+  const normalized = providerMessage.toLowerCase();
+
+  if (normalized.includes("phone") || normalized.includes("number")) {
+    return `The data provider rejected that phone number. Check it and try again. ${refundMessage}`;
+  }
+
+  return `Data service is temporarily unavailable. ${refundMessage}`;
+}
+
+function getPurchaseMetadata(params: {
+  cheapDataHubId: number;
+  network?: string;
+  phoneNumber: string;
+  planId?: string;
+  retailPriceNgn: number;
+  wholesalePriceNgn: number;
+  extra?: Record<string, unknown>;
+}) {
+  const {
+    cheapDataHubId,
+    network,
+    phoneNumber,
+    planId,
+    retailPriceNgn,
+    wholesalePriceNgn,
+    extra,
+  } = params;
+
+  return {
+    cheap_datahub_id: cheapDataHubId,
+    network,
+    phone_number: phoneNumber,
+    plan_id: planId,
+    retail_price_ngn: retailPriceNgn,
+    wholesale_price_ngn: wholesalePriceNgn,
+    ...extra,
+  };
+}
+
+async function adjustWalletBalance(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  amountKobo: number,
+) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data: wallet, error: walletErr } = await supabase
+      .from("wallets")
+      .select("balance")
+      .eq("user_id", userId)
+      .single();
+
+    if (walletErr || !wallet) {
+      return {
+        adjustment: null,
+        error: walletErr,
+        reason: "missing" as const,
+      };
+    }
+
+    const walletBefore = wallet.balance as number;
+    const walletAfter = walletBefore + amountKobo;
+
+    if (walletAfter < 0) {
+      return {
+        adjustment: null,
+        error: null,
+        reason: "insufficient" as const,
+      };
+    }
+
+    const { data: adjustedWallet, error: adjustErr } = await supabase
+      .from("wallets")
+      .update({ balance: walletAfter })
+      .eq("user_id", userId)
+      .eq("balance", walletBefore)
+      .select("balance")
+      .maybeSingle();
+
+    if (adjustErr) {
+      lastError = adjustErr;
+      break;
+    }
+
+    if (adjustedWallet) {
+      return {
+        adjustment: { walletBefore, walletAfter },
+        error: null,
+        reason: null,
+      };
+    }
+  }
+
+  return {
+    adjustment: null,
+    error: lastError,
+    reason: "conflict" as const,
+  };
+}
+
+async function refundWallet(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  amountKobo: number,
+) {
+  const result = await adjustWalletBalance(supabase, userId, amountKobo);
+
+  if (!result.adjustment) {
+    console.error("Failed to refund purchase wallet:", {
+      userId,
+      amountKobo,
+      reason: result.reason,
+      error: result.error,
+    });
+  }
+
+  return !!result.adjustment;
+}
+
+function getRefundMessage(refunded: boolean) {
+  return refunded
+    ? "Your wallet has been refunded."
+    : "Your wallet refund is pending review.";
+}
+
 async function insertPurchaseTransaction(
   supabase: ReturnType<typeof createClient>,
   params: {
@@ -101,14 +228,14 @@ async function insertPurchaseTransaction(
     wallet_before: walletBefore,
     wallet_after: walletAfter,
   };
-  const metadata = {
-    cheap_datahub_id: cheapDataHubId,
+  const metadata = getPurchaseMetadata({
+    cheapDataHubId,
     network,
-    phone_number: formattedPhone,
-    plan_id: planId,
-    wholesale_price_ngn: retailPlan.costNgn,
-    retail_price_ngn: retailPlan.retailNgn,
-  };
+    phoneNumber: formattedPhone,
+    planId,
+    retailPriceNgn: retailPlan.retailNgn,
+    wholesalePriceNgn: retailPlan.costNgn,
+  });
   const insertAttempts = [
     {
       ...walletRecord,
@@ -306,6 +433,24 @@ serve(async (req) => {
       );
     }
 
+    const requestedRetailNgn = Number(price_ngn);
+    if (
+      !Number.isFinite(requestedRetailNgn) ||
+      Math.round(requestedRetailNgn) !== retailPlan.retailNgn
+    ) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Plan price changed. Refresh plans and try again.",
+          current_price_ngn: retailPlan.retailNgn,
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // ── Verify user's purchase PIN ──
     const { data: profile, error: profileErr } = await supabaseUser
       .from("profiles")
@@ -345,49 +490,36 @@ serve(async (req) => {
       .update({ phone_number: formattedPhone })
       .eq("user_id", user.id);
 
-    // ── Check & deduct wallet balance atomically ──
+    // ── Check & deduct wallet balance ──
     const amountKobo = Math.round(retailPlan.retailNgn * 100);
 
-    const { data: wallet, error: walletErr } = await supabaseUser
-      .from("wallets")
-      .select("balance")
-      .eq("user_id", user.id)
-      .single();
+    const walletDebit = await adjustWalletBalance(
+      supabaseUser,
+      user.id,
+      -amountKobo,
+    );
 
-    if (walletErr || !wallet) {
-      return new Response(
-        JSON.stringify({ status: "error", error: "Wallet not found" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    if (!walletDebit.adjustment) {
+      const error =
+        walletDebit.reason === "insufficient"
+          ? "Insufficient wallet balance"
+          : walletDebit.reason === "conflict"
+            ? "Wallet balance changed. Please try again."
+            : "Wallet not found";
 
-    if (wallet.balance < amountKobo) {
       return new Response(
         JSON.stringify({
           status: "error",
-          error: "Insufficient wallet balance",
+          error: walletDebit.error
+            ? "Failed to deduct wallet"
+            : error,
         }),
         {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Deduct wallet
-    const { error: deductErr } = await supabaseUser
-      .from("wallets")
-      .update({ balance: wallet.balance - amountKobo })
-      .eq("user_id", user.id);
-
-    if (deductErr) {
-      return new Response(
-        JSON.stringify({ status: "error", error: "Failed to deduct wallet" }),
-        {
-          status: 500,
+          status: walletDebit.error
+            ? 500
+            : walletDebit.reason === "conflict"
+              ? 409
+              : 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
@@ -406,21 +538,20 @@ serve(async (req) => {
         planName: plan_name || retailPlan.planName || `Data ${network}`,
         retailPlan,
         userId: user.id,
-        walletBefore: wallet.balance,
+        walletBefore: walletDebit.adjustment.walletBefore,
       },
     );
 
     if (txErr || !tx) {
       // Refund wallet on transaction creation failure
-      await supabaseUser
-        .from("wallets")
-        .update({ balance: wallet.balance })
-        .eq("user_id", user.id);
+      const refunded = await refundWallet(supabaseUser, user.id, amountKobo);
 
       return new Response(
         JSON.stringify({
           status: "error",
-          error: "Failed to create transaction",
+          error: refunded
+            ? "Failed to create transaction. Your wallet has been refunded."
+            : "Failed to create transaction. Your wallet refund is pending review.",
           details: txErr?.message,
           code: txErr?.code,
         }),
@@ -452,26 +583,26 @@ serve(async (req) => {
       cdhResponse = await cdhRes.json();
     } catch (fetchErr) {
       // Network error calling CheapDataHub — refund
-      await supabaseUser
-        .from("wallets")
-        .update({ balance: wallet.balance })
-        .eq("user_id", user.id);
+      const refunded = await refundWallet(supabaseUser, user.id, amountKobo);
 
       await updatePurchaseTransaction(supabaseUser, tx.id, {
           status: "failed",
-          refunded: true,
-          metadata: {
-            error: "Network error calling data provider",
-            cheap_datahub_id,
+          refunded,
+          metadata: getPurchaseMetadata({
+            cheapDataHubId: Number(cheap_datahub_id),
             network,
-          },
+            phoneNumber: formattedPhone,
+            planId: plan_id,
+            retailPriceNgn: retailPlan.retailNgn,
+            wholesalePriceNgn: retailPlan.costNgn,
+            extra: { error: "Network error calling data provider" },
+          }),
         });
 
       return new Response(
         JSON.stringify({
           status: "error",
-          error:
-            "Could not reach data provider. Your wallet has been refunded.",
+          error: `Could not reach data provider. ${getRefundMessage(refunded)}`,
           transaction_id: tx.id,
         }),
         {
@@ -486,13 +617,15 @@ serve(async (req) => {
       // Success — mark transaction as successful
       await updatePurchaseTransaction(supabaseUser, tx.id, {
           status: "success",
-          metadata: {
-            cheap_datahub_id,
+          metadata: getPurchaseMetadata({
+            cheapDataHubId: Number(cheap_datahub_id),
             network,
-            phone_number: formattedPhone,
-            plan_id,
-            cdh_reference: cdhResponse.reference || null,
-          },
+            phoneNumber: formattedPhone,
+            planId: plan_id,
+            retailPriceNgn: retailPlan.retailNgn,
+            wholesalePriceNgn: retailPlan.costNgn,
+            extra: { cdh_reference: cdhResponse.reference || null },
+          }),
         });
 
       return new Response(
@@ -509,28 +642,35 @@ serve(async (req) => {
       );
     } else {
       // Failed — refund wallet and mark transaction as failed
-      await supabaseUser
-        .from("wallets")
-        .update({ balance: wallet.balance })
-        .eq("user_id", user.id);
+      const refunded = await refundWallet(supabaseUser, user.id, amountKobo);
 
       await updatePurchaseTransaction(supabaseUser, tx.id, {
           status: "failed",
-          refunded: true,
-          metadata: {
-            error: cdhResponse.message || "Data provider rejected the request",
-            cheap_datahub_id,
+          refunded,
+          metadata: getPurchaseMetadata({
+            cheapDataHubId: Number(cheap_datahub_id),
             network,
-            cdh_response: cdhResponse,
-          },
+            phoneNumber: formattedPhone,
+            planId: plan_id,
+            retailPriceNgn: retailPlan.retailNgn,
+            wholesalePriceNgn: retailPlan.costNgn,
+            extra: {
+              error: cdhResponse.message || "Data provider rejected the request",
+              cdh_response: cdhResponse,
+            },
+          }),
         });
+
+      const providerMessage =
+        typeof cdhResponse.message === "string" ? cdhResponse.message : "";
 
       return new Response(
         JSON.stringify({
           status: "error",
-          error:
-            cdhResponse.message ||
-            "Data purchase failed. Your wallet has been refunded.",
+          error: getProviderFailureMessage(
+            providerMessage,
+            getRefundMessage(refunded),
+          ),
           transaction_id: tx.id,
         }),
         {

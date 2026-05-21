@@ -96,7 +96,7 @@ export default function ConfirmPurchaseScreen() {
 
   // ── Purchase hook ──
   const { purchase, status: purchaseStatus, error: purchaseError, transactionId } =
-    usePurchase(plan, walletBalance, deduct, addTransaction);
+    usePurchase(plan, walletBalance, deduct, addTransaction, refetch);
 
   const newBalance = walletBalance + fundAmount;
   const remainingBalance = newBalance - plan.price;

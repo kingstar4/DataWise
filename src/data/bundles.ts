@@ -122,60 +122,60 @@ function makeBundle(
 
 const MTN_BUNDLES: DataBundle[] = [
   // Daily
-  makeBundle('MTN', 'MTN 110MB Daily',   0.11,  120,   99,   1, '*131*1*1*1#', 'daily',   43),
-  makeBundle('MTN', 'MTN 230MB Daily',   0.23,  250,  200,   1, '*131*1*1*2#', 'daily',   74),
+  makeBundle('MTN', 'MTN 110MB Daily',   0.11,   100,   99,   1, '*131*1*1*1#', 'daily',   43),
+  makeBundle('MTN', 'MTN 230MB Daily',   0.23,   220,  200,   1, '*131*1*1*2#', 'daily',   74),
 
   // Weekly
-  makeBundle('MTN', 'MTN 1GB Weekly',    1,     550,  450,   7, '*131*1*2*2#', 'weekly',  45),
-  makeBundle('MTN', 'MTN 2GB Weekly',    2,    1050,  930,   7, '*131*1*2*3#', 'weekly',  47),
+  makeBundle('MTN', 'MTN 1GB Weekly',    1,     500,  450,   7, '*131*1*2*2#', 'weekly',  45),
+  makeBundle('MTN', 'MTN 2GB Weekly',    2,     980,  930,   7, '*131*1*2*3#', 'weekly',  47),
 
   // Monthly
-  makeBundle('MTN', 'MTN 500MB Monthly', 0.5,   450,  350,  30, '*131*1*3*0#', 'monthly', 44),
-  makeBundle('MTN', 'MTN 1GB Monthly',   1,     700,  570,  30, '*131*1*3*1#', 'monthly', 46),
-  makeBundle('MTN', 'MTN 2GB Monthly',   2,    1350, 1150,  30, '*131*1*3*2#', 'monthly', 48),
-  makeBundle('MTN', 'MTN 3GB Monthly',   3,    1600, 1370,  30, '*131*1*3*3#', 'monthly', 49),
-  makeBundle('MTN', 'MTN 5GB Monthly',   5,    2400, 2050,  30, '*131*1*3*4#', 'monthly', 50),
-  makeBundle('MTN', 'MTN 7GB Monthly',   7,    3800, 3499,  30, '*131*1*3*5#', 'monthly', 33),
-  makeBundle('MTN', 'MTN 10GB Monthly', 10,    5000, 4470,  30, '*131*1*3*6#', 'monthly', 67),
+  makeBundle('MTN', 'MTN 500MB Monthly', 0.5,   400,  350,  30, '*131*1*3*0#', 'monthly', 44),
+  makeBundle('MTN', 'MTN 1GB Monthly',   1,     620,  570,  30, '*131*1*3*1#', 'monthly', 46),
+  makeBundle('MTN', 'MTN 2GB Monthly',   2,    1300, 1150,  30, '*131*1*3*2#', 'monthly', 48),
+  makeBundle('MTN', 'MTN 3GB Monthly',   3,    1520, 1370,  30, '*131*1*3*3#', 'monthly', 49),
+  makeBundle('MTN', 'MTN 5GB Monthly',   5,    2200, 2050,  30, '*131*1*3*4#', 'monthly', 50),
+  makeBundle('MTN', 'MTN 7GB Monthly',   7,    3799, 3499,  30, '*131*1*3*5#', 'monthly', 33),
+  makeBundle('MTN', 'MTN 10GB Monthly', 10,    4770, 4470,  30, '*131*1*3*6#', 'monthly', 67),
 ];
 
 // ── Airtel Plans ───────────────────────────────────────────────────────────
 
 const AIRTEL_BUNDLES: DataBundle[] = [
   // Daily
-  makeBundle('Airtel', 'Airtel 1.5GB Daily', 1.5,   600,  500,   1, '*141*500#',  'daily',   69),
+  makeBundle('Airtel', 'Airtel 1.5GB Daily', 1.5,   550,  500,   1, '*141*500#',  'daily',   69),
 
   // Weekly
-  makeBundle('Airtel', 'Airtel 500MB Weekly', 0.5,   600,  490,   7, '*141*502#',  'weekly',  13),
-  makeBundle('Airtel', 'Airtel 1GB Weekly',   1,     900,  785,   7, '*141*785#',  'weekly',  15),
-  makeBundle('Airtel', 'Airtel 5GB Weekly',   5,    1800, 1570,   7, '*141*1570#', 'weekly',  52),
+  makeBundle('Airtel', 'Airtel 500MB Weekly', 0.5,   540,  490,   7, '*141*502#',  'weekly',  13),
+  makeBundle('Airtel', 'Airtel 1GB Weekly',   1,     835,  785,   7, '*141*785#',  'weekly',  15),
+  makeBundle('Airtel', 'Airtel 5GB Weekly',   5,    1720, 1570,   7, '*141*1570#', 'weekly',  52),
 
   // Monthly
-  makeBundle('Airtel', 'Airtel 2GB Monthly',  2,    1700, 1470,  30, '*141*1200#', 'monthly', 17),
-  makeBundle('Airtel', 'Airtel 3GB Monthly',  3,    2200, 1960,  30, '*141*1500#', 'monthly', 18),
-  makeBundle('Airtel', 'Airtel 4GB Monthly',  4,    2900, 2570,  30, '*141*2000#', 'monthly', 19),
-  makeBundle('Airtel', 'Airtel 8GB Monthly',  8,    3400, 2999,  30, '*141*3000#', 'monthly', 20),
-  makeBundle('Airtel', 'Airtel 10GB Monthly',10,    4500, 4070,  30, '*141*5000#', 'monthly', 21),
+  makeBundle('Airtel', 'Airtel 2GB Monthly',  2,    1620, 1470,  30, '*141*1200#', 'monthly', 17),
+  makeBundle('Airtel', 'Airtel 3GB Monthly',  3,    2110, 1960,  30, '*141*1500#', 'monthly', 18),
+  makeBundle('Airtel', 'Airtel 4GB Monthly',  4,    2720, 2570,  30, '*141*2000#', 'monthly', 19),
+  makeBundle('Airtel', 'Airtel 8GB Monthly',  8,    3149, 2999,  30, '*141*3000#', 'monthly', 20),
+  makeBundle('Airtel', 'Airtel 10GB Monthly',10,    4370, 4070,  30, '*141*5000#', 'monthly', 21),
 ];
 
 // ── Glo Plans ──────────────────────────────────────────────────────────────
 
 const GLO_BUNDLES: DataBundle[] = [
   // Daily
-  makeBundle('Glo', 'Glo 200MB Daily',     0.2,   120,   89,   1, '*127*51#', 'daily',   42),
+  makeBundle('Glo', 'Glo 200MB Daily',     0.2,    90,   89,   1, '*127*51#', 'daily',   42),
 
   // Weekly
-  makeBundle('Glo', 'Glo 1GB Weekly',      1,     350,  280,   3, '*127*57#', 'weekly',  68),
-  makeBundle('Glo', 'Glo 5GB Weekly',      5,    1900, 1690,   7, '*127*59#', 'weekly',  54),
+  makeBundle('Glo', 'Glo 1GB Weekly',      1,     300,  280,   3, '*127*57#', 'weekly',  68),
+  makeBundle('Glo', 'Glo 5GB Weekly',      5,    1840, 1690,   7, '*127*59#', 'weekly',  54),
 
   // Monthly
-  makeBundle('Glo', 'Glo 500MB Monthly',   0.5,   300,  225,  30, '*127*52#', 'monthly', 35),
-  makeBundle('Glo', 'Glo 1GB Monthly',     1,     550,  425,  30, '*127*53#', 'monthly', 36),
-  makeBundle('Glo', 'Glo 2GB Monthly',     2,    1050,  840,  30, '*127*54#', 'monthly', 40),
-  makeBundle('Glo', 'Glo 3GB Monthly',     3,    1500, 1290,  30, '*127*58#', 'monthly', 37),
-  makeBundle('Glo', 'Glo 5GB Monthly',     5,    2500, 2190,  30, '*127*59#', 'monthly', 38),
-  makeBundle('Glo', 'Glo 10GB Monthly',   10,    4800, 4390,  30, '*127*2#',  'monthly', 39),
-  makeBundle('Glo', 'Glo 20.5GB Monthly',20.5,   5800, 5300,  30, '*127*3#',  'monthly', 59),
+  makeBundle('Glo', 'Glo 500MB Monthly',   0.5,   245,  225,  30, '*127*52#', 'monthly', 35),
+  makeBundle('Glo', 'Glo 1GB Monthly',     1,     475,  425,  30, '*127*53#', 'monthly', 36),
+  makeBundle('Glo', 'Glo 2GB Monthly',     2,     890,  840,  30, '*127*54#', 'monthly', 40),
+  makeBundle('Glo', 'Glo 3GB Monthly',     3,    1440, 1290,  30, '*127*58#', 'monthly', 37),
+  makeBundle('Glo', 'Glo 5GB Monthly',     5,    2340, 2190,  30, '*127*59#', 'monthly', 38),
+  makeBundle('Glo', 'Glo 10GB Monthly',   10,    4690, 4390,  30, '*127*2#',  'monthly', 39),
+  makeBundle('Glo', 'Glo 20.5GB Monthly',20.5,  5700, 5300,  30, '*127*3#',  'monthly', 59),
 ];
 
 // ── 9mobile Plans ──────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,12 +21,15 @@ import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme'
 import { useThemeMode } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
 import {
+  type RecommendableBundle,
   projectMonthlyUsage,
   useBundleRecommendation,
 } from '@/hooks/useBundleRecommendation';
 import { PERIOD_MAP, useDataUsage } from '@/hooks/useDataUsage';
+import { supabase } from '@/lib/supabase';
 import UsageAccess from '@/native/UsageAccess';
-import { dialUSSD } from '@/utils/dial-ussd';
+import { normalizeCarrierName } from '@/data/bundles';
+import { useWalletContext } from '@/context/WalletContext';
 
 // Rotating palette for dynamically colored app icons
 const APP_COLORS = [
@@ -36,11 +40,13 @@ const APP_COLORS = [
 const PERIOD_LABELS = ['today', 'this week', 'this month'];
 
 export default function HomeScreen() {
+  const router = useRouter();
   const theme = useTheme();
   const { isDark } = useThemeMode();
   const insets = useSafeAreaInsets();
   const [periodIndex, setPeriodIndex] = useState(1);
   const [showAllDrainers, setShowAllDrainers] = useState(false);
+  const [livePlans, setLivePlans] = useState<RecommendableBundle[]>([]);
 
   // Get actual carrier name from native Android TelephonyManager
   const carrierName = useMemo(() => {
@@ -83,13 +89,79 @@ export default function HomeScreen() {
     () => projectMonthlyUsage(grandTotal, period),
     [grandTotal, period],
   );
-  const recommendation = useBundleRecommendation(carrierName, projectedMonthly);
+  const carrierId = useMemo(() => normalizeCarrierName(carrierName), [carrierName]);
+  const recommendation = useBundleRecommendation(carrierName, projectedMonthly, livePlans);
+  const { balance: walletBalance } = useWalletContext();
+
+  React.useEffect(() => {
+    if (!carrierId) {
+      setLivePlans([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadLivePlans() {
+      const { data, error } = await supabase.functions.invoke('get-data-plans', {
+        body: { network: carrierId, category: 'monthly' },
+      });
+
+      if (cancelled) return;
+
+      if (error || data?.status !== 'success') {
+        setLivePlans([]);
+        return;
+      }
+
+      const plans: RecommendableBundle[] = ((data.plans ?? []) as any[])
+        .map((plan: any) => ({
+        id: String(plan.id),
+        carrier: plan.network,
+        name: String(plan.name),
+        dataGB: Number(plan.gb ?? 0),
+        priceNGN: Number(plan.price ?? 0),
+        validityDays: Number(plan.validity ?? 30),
+        ussdCode: String(plan.ussdCode ?? ''),
+        costPerGB: Number(plan.pricePerGb ?? 0),
+        cheapDataHubId: Number(plan.cheapDataHubId ?? 0),
+      }))
+        .filter((plan: RecommendableBundle) => plan.dataGB > 0 && plan.priceNGN > 0 && plan.cheapDataHubId > 0);
+
+      setLivePlans(plans);
+    }
+
+    loadLivePlans();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [carrierId]);
 
   const handleBuyBundle = useCallback(() => {
-    if (recommendation) {
-      dialUSSD(recommendation.bundle.ussdCode, recommendation.bundle.name);
-    }
-  }, [recommendation]);
+    if (!recommendation) return;
+
+    const plan = recommendation.bundle;
+    const planParams = {
+      planId: plan.id,
+      planName: plan.name,
+      planGb: String(plan.dataGB),
+      planPrice: String(plan.priceNGN),
+      planValidity: String(plan.validityDays),
+      planUssd: plan.ussdCode,
+      planPricePerGb: String(plan.costPerGB),
+      planNetwork: plan.carrier,
+      planCheapDataHubId: String(plan.cheapDataHubId ?? ''),
+      carrierName: recommendation.carrierId,
+      projectedGB: String(recommendation.projectedUsageGB),
+    };
+
+    router.push({
+      pathname: walletBalance >= plan.priceNGN ? '/confirm-purchase' : '/wallet-fund',
+      params: walletBalance >= plan.priceNGN
+        ? { ...planParams, fundAmount: '0' }
+        : planParams,
+    } as any);
+  }, [recommendation, router, walletBalance]);
 
   // All data drainers (mapped for display)
   const allDrainers = useMemo(() => {
@@ -278,8 +350,8 @@ export default function HomeScreen() {
                   styles.bundleButton,
                   pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
                 ]}>
-                <Text style={styles.bundleButtonText}>Buy Bundle</Text>
-                <Ionicons name="call" size={14} color="#1C2765" />
+                <Text style={styles.bundleButtonText}>Buy in app</Text>
+                <Ionicons name="arrow-forward" size={14} color="#1C2765" />
               </Pressable>
             </View>
           </LinearGradient>

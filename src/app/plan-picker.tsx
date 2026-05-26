@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Badge, Card, HeroHeader, InsightCard, SensitiveValue, ThemeToggle } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useWalletContext } from '@/context/WalletContext';
-import { getBundlesForCarrier, getMonthlyBundles, normalizeCarrierName } from '@/data/bundles';
+import { getBundlesForCarrier, getMonthlyBundles, normalizeCarrierName, type CarrierId } from '@/data/bundles';
 import { useTheme } from '@/hooks/use-theme';
 import {
   projectMonthlyUsage,
@@ -18,11 +18,13 @@ import { useDataUsage } from '@/hooks/useDataUsage';
 import { supabase } from '@/lib/supabase';
 import UsageAccess from '@/native/UsageAccess';
 import type { BundlePlan } from '@/types/payments';
+import { platformCapabilities } from '@/lib/platform-capabilities';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const GB = 1024 * 1024 * 1024;
 const ALL_PLANS_BATCH_SIZE = 8;
+const NETWORK_CHOICES: CarrierId[] = ['MTN', 'Airtel', 'Glo', '9mobile'];
 
 function toBundlePlan(bundle: ReturnType<typeof getMonthlyBundles>[number]): BundlePlan {
   return {
@@ -88,7 +90,11 @@ export default function PlanPickerScreen() {
   const router = useRouter();
 
   // ── Carrier detection ──
-  const carrierName = useMemo(() => {
+  const detectedCarrierName = useMemo(() => {
+    if (!platformCapabilities.automaticUsageTracking) {
+      return 'Mobile';
+    }
+
     try {
       const name = UsageAccess.getCarrierName();
       return name || 'Mobile';
@@ -97,14 +103,26 @@ export default function PlanPickerScreen() {
     }
   }, []);
 
-  const carrierId = useMemo(() => normalizeCarrierName(carrierName), [carrierName]);
+  const detectedCarrierId = useMemo(
+    () => normalizeCarrierName(detectedCarrierName),
+    [detectedCarrierName],
+  );
+  const [selectedCarrierId, setSelectedCarrierId] = useState<CarrierId | null>(null);
+  const carrierId = selectedCarrierId ?? detectedCarrierId ?? 'MTN';
+  const carrierName = carrierId;
 
   // ── Usage projection ──
-  const { grandTotal, isLoading: usageLoading } = useDataUsage('week');
+  const hasAutomaticUsage = platformCapabilities.automaticUsageTracking && Platform.OS === 'android';
+  const { grandTotal, isLoading: usageLoading } = useDataUsage('week', hasAutomaticUsage);
   const [usageLoadStarted, setUsageLoadStarted] = useState(false);
   const [usageSettled, setUsageSettled] = useState(false);
 
   useEffect(() => {
+    if (!hasAutomaticUsage) {
+      setUsageSettled(true);
+      return;
+    }
+
     if (usageLoading) {
       setUsageLoadStarted(true);
       return;
@@ -113,15 +131,15 @@ export default function PlanPickerScreen() {
     if (usageLoadStarted) {
       setUsageSettled(true);
     }
-  }, [usageLoadStarted, usageLoading]);
+  }, [hasAutomaticUsage, usageLoadStarted, usageLoading]);
   const projectedMonthlyBytes = useMemo(
     () => projectMonthlyUsage(grandTotal, 'week'),
     [grandTotal],
   );
-  const projectedGB = useMemo(
-    () => Math.round((projectedMonthlyBytes / GB) * 10) / 10,
-    [projectedMonthlyBytes],
-  );
+  const projectedGB = useMemo(() => {
+    if (!hasAutomaticUsage) return 3;
+    return Math.max(1, Math.round((projectedMonthlyBytes / GB) * 10) / 10);
+  }, [hasAutomaticUsage, projectedMonthlyBytes]);
 
   // ── Plans for carrier ──
   const fallbackPlans: BundlePlan[] = useMemo(() => {
@@ -251,6 +269,47 @@ export default function PlanPickerScreen() {
     setAllPlansError(null);
     setShowAllPlans(false);
   }, [carrierId]);
+
+  const renderNetworkSelector = () => (
+    <View
+      style={[
+        styles.networkSelector,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}>
+      <Text style={[styles.networkSelectorLabel, { color: theme.textMuted }]}>
+        NETWORK
+      </Text>
+      <View style={styles.networkChips}>
+        {NETWORK_CHOICES.map((network) => {
+          const selected = carrierId === network;
+          return (
+            <Pressable
+              key={network}
+              onPress={() => setSelectedCarrierId(network)}
+              style={[
+                styles.networkChip,
+                {
+                  backgroundColor: selected
+                    ? '#6366F1'
+                    : isDark
+                      ? '#0d1626'
+                      : theme.surfaceAlt,
+                  borderColor: selected ? '#6366F1' : theme.border,
+                },
+              ]}>
+              <Text
+                style={[
+                  styles.networkChipText,
+                  { color: selected ? '#FFFFFF' : theme.text },
+                ]}>
+                {network}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
 
   // ── Best value plan (lowest pricePerGb that covers projected usage) ──
   const bestValueId = useMemo(() => {
@@ -441,6 +500,8 @@ export default function PlanPickerScreen() {
             </HeroHeader>
 
             <View style={[styles.contentArea, styles.allPlansHeader, { marginTop: -Spacing.four }]}>
+              {renderNetworkSelector()}
+
               <View
                 style={[
                   styles.sectionTitleRow,
@@ -546,6 +607,8 @@ export default function PlanPickerScreen() {
 
       {/* ──── Content Area ──── */}
       <View style={[styles.contentArea, { marginTop: -Spacing.four }]}>
+        {renderNetworkSelector()}
+
         <View
           style={[
             styles.sectionTitleRow,
@@ -777,6 +840,32 @@ const styles = StyleSheet.create({
   },
   emptyPlans: {
     paddingBottom: Spacing.four,
+  },
+  networkSelector: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: 12,
+    gap: Spacing.two,
+  },
+  networkSelectorLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.semiBold,
+    letterSpacing: 0.8,
+  },
+  networkChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  networkChip: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  networkChipText: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
   },
   sectionTitleRow: {
     flexDirection: 'row',

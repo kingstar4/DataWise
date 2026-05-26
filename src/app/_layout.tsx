@@ -16,7 +16,7 @@ import { Session } from '@supabase/supabase-js';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 
 import AuthScreen from '@/app/auth';
 import OnboardingScreen from '@/app/onboarding';
@@ -130,7 +130,7 @@ function AppContent() {
   }
 
   // Signed in, has purchase PIN, but no usage permission
-  if (!hasPermission) {
+  if (Platform.OS === 'android' && !hasPermission) {
     return (
       <NavThemeProvider value={navTheme}>
         <UsagePermissionScreen
@@ -151,6 +151,7 @@ function AppContent() {
             <Stack.Screen name="plan-picker" />
             <Stack.Screen name="wallet-fund" />
             <Stack.Screen name="paystack-callback" />
+            <Stack.Screen name="flutterwave-callback" />
             <Stack.Screen name="confirm-purchase" />
             <Stack.Screen name="purchase-success" />
             <Stack.Screen name="transactions" />

@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const PLAN_IDS_URL = "https://www.cheapdatahub.ng/api/plan-ids/";
 
+const MARKUP_MODE = Deno.env.get("DATA_PLAN_MARKUP_MODE") ?? "competitive";
 const MARKUP_PERCENT = Number(Deno.env.get("DATA_PLAN_MARKUP_PERCENT") ?? "10");
 const MARKUP_FIXED_NGN = Number(Deno.env.get("DATA_PLAN_MARKUP_FIXED_NGN") ?? "50");
 const MIN_PROFIT_NGN = Number(Deno.env.get("DATA_PLAN_MIN_PROFIT_NGN") ?? "100");
@@ -58,9 +59,41 @@ function getCategory(validityDays: number) {
 }
 
 function applyMarkup(costNgn: number) {
+  if (MARKUP_MODE !== "legacy") {
+    if (costNgn < 150) return Math.ceil(costNgn / 10) * 10;
+    if (costNgn < 300) return costNgn + 20;
+    if (costNgn < 1000) return costNgn + 50;
+    if (costNgn < 3000) return costNgn + 150;
+    if (costNgn < 5000) return costNgn + 300;
+    return costNgn + 400;
+  }
+
   const percentMarkup = Math.ceil(costNgn * (MARKUP_PERCENT / 100));
   const profit = Math.max(percentMarkup + MARKUP_FIXED_NGN, MIN_PROFIT_NGN);
   return Math.ceil(costNgn + profit);
+}
+
+function getMarkupDescription() {
+  if (MARKUP_MODE === "legacy") {
+    return {
+      mode: "legacy",
+      percent: MARKUP_PERCENT,
+      fixed_ngn: MARKUP_FIXED_NGN,
+      min_profit_ngn: MIN_PROFIT_NGN,
+    };
+  }
+
+  return {
+    mode: "competitive",
+    tiers: [
+      { max_cost_ngn: 149, pricing: "round_up_to_next_10_ngn" },
+      { max_cost_ngn: 299, profit_ngn: 20 },
+      { max_cost_ngn: 999, profit_ngn: 50 },
+      { max_cost_ngn: 2999, profit_ngn: 150 },
+      { max_cost_ngn: 4999, profit_ngn: 300 },
+      { min_cost_ngn: 5000, profit_ngn: 400 },
+    ],
+  };
 }
 
 function parsePlans(html: string) {
@@ -137,11 +170,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         status: "success",
-        markup: {
-          percent: MARKUP_PERCENT,
-          fixed_ngn: MARKUP_FIXED_NGN,
-          min_profit_ngn: MIN_PROFIT_NGN,
-        },
+        markup: getMarkupDescription(),
         plans,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },

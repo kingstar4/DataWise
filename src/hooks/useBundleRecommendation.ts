@@ -16,7 +16,7 @@ import {
 
 export type BundleRecommendation = {
   /** The recommended data plan */
-  bundle: DataBundle;
+  bundle: RecommendableBundle;
   /** The user's projected monthly usage in GB */
   projectedUsageGB: number;
   /** How much the user saves vs. the next more expensive plan (₦) */
@@ -25,6 +25,14 @@ export type BundleRecommendation = {
   comparedPlanName: string;
   /** Normalized carrier ID */
   carrierId: CarrierId;
+};
+
+export type RecommendableBundle = Pick<
+  DataBundle,
+  'name' | 'dataGB' | 'priceNGN' | 'validityDays' | 'ussdCode' | 'costPerGB' | 'cheapDataHubId'
+> & {
+  id: string;
+  carrier: CarrierId;
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -49,6 +57,7 @@ const USAGE_BUFFER = 1.2;
 export function useBundleRecommendation(
   carrierName: string,
   monthlyUsageBytes: number,
+  livePlans?: RecommendableBundle[],
 ): BundleRecommendation | null {
   return useMemo(() => {
     // 1. Normalize carrier
@@ -56,7 +65,9 @@ export function useBundleRecommendation(
     if (!carrierId) return null;
 
     // 2. Get monthly plans for this carrier
-    const monthlyPlans = getMonthlyBundles(carrierId);
+    const monthlyPlans = livePlans?.length
+      ? livePlans.filter((plan) => plan.carrier === carrierId)
+      : getMonthlyBundles(carrierId);
     if (monthlyPlans.length === 0) return null;
 
     // 3. Project usage in GB with buffer
@@ -68,8 +79,8 @@ export function useBundleRecommendation(
       (p) => p.dataGB >= bufferedUsageGB,
     );
 
-    let recommended: DataBundle;
-    let comparedPlan: DataBundle | null = null;
+    let recommended: RecommendableBundle;
+    let comparedPlan: RecommendableBundle | null = null;
 
     if (coveringPlans.length > 0) {
       // Cheapest plan that covers usage (already sorted by price asc)
@@ -79,13 +90,9 @@ export function useBundleRecommendation(
       const nextIndex = coveringPlans.length > 1 ? 1 : null;
       comparedPlan = nextIndex !== null ? coveringPlans[nextIndex] : null;
     } else {
-      // User's usage exceeds all plans — recommend the biggest available
-      recommended = monthlyPlans[monthlyPlans.length - 1];
-
-      // Compare with the next smaller plan to show savings per GB
-      if (monthlyPlans.length > 1) {
-        comparedPlan = monthlyPlans[monthlyPlans.length - 2];
-      }
+      // No catalog plan can cover the projected usage, so do not present a
+      // smaller bundle as a recommendation.
+      return null;
     }
 
     // 5. Calculate savings
@@ -100,7 +107,7 @@ export function useBundleRecommendation(
       comparedPlanName: comparedPlan?.name ?? '',
       carrierId,
     };
-  }, [carrierName, monthlyUsageBytes]);
+  }, [carrierName, livePlans, monthlyUsageBytes]);
 }
 
 // ── Utility ────────────────────────────────────────────────────────────────

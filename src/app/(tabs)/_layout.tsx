@@ -63,6 +63,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="premium"
+        options={{
+          title: 'Premium',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="sparkles" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="breakdown"
         options={{
           title: 'Apps',

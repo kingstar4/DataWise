@@ -36,6 +36,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const PAYSTACK_CALLBACK_PATH = "/paystack-callback";
+const FLUTTERWAVE_CALLBACK_PATH = "/flutterwave-callback";
+type PayMethod = "paystack" | "flutterwave";
 
 function formatPlanSize(gb: number, name: string) {
   if (gb >= 1) return `${gb.toLocaleString()} GB`;
@@ -46,10 +48,10 @@ function formatPlanSize(gb: number, name: string) {
   return `${Math.round(gb * 1024).toLocaleString()} MB`;
 }
 
-function getVerificationMessage(verification: any) {
+function getVerificationMessage(verification: any, provider = "Gateway") {
   const parts = [
     verification?.payment_status
-      ? `Paystack status: ${verification.payment_status}`
+      ? `${provider} status: ${verification.payment_status}`
       : null,
     verification?.gateway_response
       ? `Gateway: ${verification.gateway_response}`
@@ -157,7 +159,7 @@ export default function WalletFundScreen() {
   const gap = plan.price - newBalance;
 
   // ── Pay method ──
-  const [payMethod, setPayMethod] = useState<1 | 2>(1);
+  const [payMethod, setPayMethod] = useState<PayMethod>("paystack");
 
   // ── Subtitle text ──
   const subtitleText = useMemo(() => {
@@ -196,14 +198,6 @@ export default function WalletFundScreen() {
 
   // ── Confirm — calls initiate-topup edge function and opens Paystack ──
   const handleConfirm = useCallback(async () => {
-    if (payMethod !== 1) {
-      Alert.alert(
-        "Bank transfer unavailable",
-        "Please select Paystack to fund your wallet in the app.",
-      );
-      return;
-    }
-
     if (effectiveAmount < 100) {
       Alert.alert("Invalid amount", "Minimum top-up is ₦100");
       return;
@@ -213,14 +207,18 @@ export default function WalletFundScreen() {
 
     try {
       const startingBalance = walletBalance;
-      const callbackUrl = Linking.createURL(PAYSTACK_CALLBACK_PATH);
+      const isFlutterwave = payMethod === "flutterwave";
+      const providerName = isFlutterwave ? "Flutterwave" : "Paystack";
+      const baseCallbackUrl = Linking.createURL(
+        isFlutterwave ? FLUTTERWAVE_CALLBACK_PATH : PAYSTACK_CALLBACK_PATH,
+      );
 
       const { data, error } = await supabase.functions.invoke(
-        "initiate-topup",
+        isFlutterwave ? "initiate-flutterwave-topup" : "initiate-topup",
         {
           body: {
             amount_ngn: effectiveAmount,
-            callback_url: callbackUrl,
+            callback_url: baseCallbackUrl,
           },
         },
       );
@@ -228,7 +226,12 @@ export default function WalletFundScreen() {
       if (error) throw error;
       if (!data?.authorization_url) throw new Error("No payment URL returned");
 
-      await WebBrowser.openAuthSessionAsync(
+      const callbackUrl =
+        isFlutterwave && data.reference
+          ? `${baseCallbackUrl}${baseCallbackUrl.includes("?") ? "&" : "?"}reference=${encodeURIComponent(data.reference)}`
+          : baseCallbackUrl;
+
+      const browserResult = await WebBrowser.openAuthSessionAsync(
         data.authorization_url,
         callbackUrl,
         {
@@ -237,13 +240,30 @@ export default function WalletFundScreen() {
         },
       );
 
+      let flutterwaveTransactionId: string | undefined;
+      if (isFlutterwave && browserResult.type === "success" && browserResult.url) {
+        const parsed = Linking.parse(browserResult.url);
+        const rawTransactionId = parsed.queryParams?.transaction_id;
+        flutterwaveTransactionId = Array.isArray(rawTransactionId)
+          ? rawTransactionId[0]
+          : rawTransactionId
+            ? String(rawTransactionId)
+            : undefined;
+      }
+
       setWaitingForCredit(true);
       let lastVerification: any = null;
       for (let attempt = 0; attempt < 12; attempt += 1) {
         const { data: verification, error: verifyError } =
-          await supabase.functions.invoke("verify-topup", {
-            body: { reference: data.reference ?? data.transaction_id },
-          });
+          await supabase.functions.invoke(
+            isFlutterwave ? "verify-flutterwave-topup" : "verify-topup",
+            {
+              body: {
+                reference: data.reference ?? data.transaction_id,
+                transaction_id: flutterwaveTransactionId,
+              },
+            },
+          );
 
         if (verifyError) throw verifyError;
         lastVerification = verification;
@@ -262,7 +282,7 @@ export default function WalletFundScreen() {
           await refetch();
           Alert.alert(
             "Payment failed",
-            "Paystack did not complete this payment. Your wallet was not credited.",
+            `${providerName} did not complete this payment. Your wallet was not credited.`,
             [{ text: "OK", onPress: navigateToWallet }],
           );
           return;
@@ -288,7 +308,7 @@ export default function WalletFundScreen() {
 
       Alert.alert(
         "Payment pending",
-        `If your Paystack payment was successful, your wallet will update once confirmation is received.${getVerificationMessage(lastVerification)}`,
+        `If your ${providerName} payment was successful, your wallet will update once confirmation is received.${getVerificationMessage(lastVerification, providerName)}`,
         [{ text: "OK", onPress: navigateToWallet }],
       );
     } catch (e: any) {
@@ -303,7 +323,10 @@ export default function WalletFundScreen() {
             errorMessage = body.details
               ? `${body.error}: ${body.details}`
               : body.error;
-            errorMessage += getVerificationMessage(body);
+            errorMessage += getVerificationMessage(
+              body,
+              payMethod === "flutterwave" ? "Flutterwave" : "Paystack",
+            );
           }
         } catch {
           // Fallback if parsing fails
@@ -434,11 +457,12 @@ export default function WalletFundScreen() {
       >
         {/* Paystack */}
         <Pressable
-          onPress={() => setPayMethod(1)}
+          onPress={() => setPayMethod("paystack")}
           style={[
             styles.payRow,
+            styles.payRowDivider,
             { borderBottomColor: theme.border },
-            payMethod === 1 && {
+            payMethod === "paystack" && {
               backgroundColor: isDark ? "#0d1626" : theme.surfaceAlt,
             },
           ]}
@@ -459,8 +483,39 @@ export default function WalletFundScreen() {
               Card or bank transfer
             </Text>
           </View>
-          <View style={[styles.radio, payMethod === 1 && styles.radioSelected]}>
-            {payMethod === 1 && <View style={styles.radioDot} />}
+          <View style={[styles.radio, payMethod === "paystack" && styles.radioSelected]}>
+            {payMethod === "paystack" && <View style={styles.radioDot} />}
+          </View>
+        </Pressable>
+
+        {/* Flutterwave */}
+        <Pressable
+          onPress={() => setPayMethod("flutterwave")}
+          style={[
+            styles.payRow,
+            payMethod === "flutterwave" && {
+              backgroundColor: isDark ? "#0d1626" : theme.surfaceAlt,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.payIcon,
+              { backgroundColor: isDark ? "#301708" : "#fff7ed" },
+            ]}
+          >
+            <Ionicons name="flash" size={16} color="#F97316" />
+          </View>
+          <View style={styles.payLabel}>
+            <Text style={[styles.payLabelTitle, { color: theme.text }]}>
+              Flutterwave
+            </Text>
+            <Text style={[styles.payLabelSub, { color: theme.textMuted }]}>
+              Card, bank, transfer or USSD
+            </Text>
+          </View>
+          <View style={[styles.radio, payMethod === "flutterwave" && styles.radioSelected]}>
+            {payMethod === "flutterwave" && <View style={styles.radioDot} />}
           </View>
         </Pressable>
 
@@ -611,6 +666,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     padding: 14,
+  },
+  payRowDivider: {
     borderBottomWidth: 1,
   },
   payIcon: {

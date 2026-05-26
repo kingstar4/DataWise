@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, Platform, type AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import UsageAccess from "@/native/UsageAccess";
 
@@ -34,6 +34,7 @@ export type UsagePermissionState = {
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 export function useUsagePermission(): UsagePermissionState {
+    const usagePermissionSupported = Platform.OS === "android";
     const [hasPermission, setHasPermission] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [onboardingCompleted, setOnboardingCompleted] = useState(false);
@@ -47,6 +48,11 @@ export function useUsagePermission(): UsagePermissionState {
      * so there's no async delay.
      */
     const checkNativePermission = useCallback(() => {
+        if (!usagePermissionSupported) {
+            setHasPermission(true);
+            return;
+        }
+
         try {
             const granted = UsageAccess.hasUsageAccess();
             setHasPermission(granted);
@@ -66,7 +72,7 @@ export function useUsagePermission(): UsagePermissionState {
             // If the native module throws (e.g. on web), default to false
             setHasPermission(false);
         }
-    }, []);
+    }, [usagePermissionSupported]);
 
     /**
      * Load the onboarding flag from AsyncStorage.
@@ -113,8 +119,9 @@ export function useUsagePermission(): UsagePermissionState {
 
     // ── Open Android settings ──
     const openSettings = useCallback(() => {
+        if (!usagePermissionSupported) return;
         UsageAccess.openUsageAccessSettings();
-    }, []);
+    }, [usagePermissionSupported]);
 
     return {
         hasPermission,

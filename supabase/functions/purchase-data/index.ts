@@ -7,6 +7,7 @@ const CHEAPDATAHUB_API_KEY = Deno.env.get("CHEAPDATAHUB_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const PLAN_IDS_URL = "https://www.cheapdatahub.ng/api/plan-ids/";
+const MARKUP_MODE = Deno.env.get("DATA_PLAN_MARKUP_MODE") ?? "competitive";
 const MARKUP_PERCENT = Number(Deno.env.get("DATA_PLAN_MARKUP_PERCENT") ?? "10");
 const MARKUP_FIXED_NGN = Number(Deno.env.get("DATA_PLAN_MARKUP_FIXED_NGN") ?? "50");
 const MIN_PROFIT_NGN = Number(Deno.env.get("DATA_PLAN_MIN_PROFIT_NGN") ?? "100");
@@ -29,6 +30,15 @@ function decodeHtml(value: string) {
 }
 
 function applyMarkup(costNgn: number) {
+  if (MARKUP_MODE !== "legacy") {
+    if (costNgn < 150) return Math.ceil(costNgn / 10) * 10;
+    if (costNgn < 300) return costNgn + 20;
+    if (costNgn < 1000) return costNgn + 50;
+    if (costNgn < 3000) return costNgn + 150;
+    if (costNgn < 5000) return costNgn + 300;
+    return costNgn + 400;
+  }
+
   const percentMarkup = Math.ceil(costNgn * (MARKUP_PERCENT / 100));
   const profit = Math.max(percentMarkup + MARKUP_FIXED_NGN, MIN_PROFIT_NGN);
   return Math.ceil(costNgn + profit);

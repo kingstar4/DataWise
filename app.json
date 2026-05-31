@@ -2,7 +2,7 @@
   "expo": {
     "name": "DataWise",
     "slug": "DataWise",
-    "version": "1.0.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "datawise",
@@ -18,8 +18,10 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.thehubx.DataWise",
+      "versionCode": 3,
       "permissions": [
-        "android.permission.PACKAGE_USAGE_STATS"
+        "android.permission.PACKAGE_USAGE_STATS",
+        "android.permission.QUERY_ALL_PACKAGES"
       ]
     },
     "web": {

@@ -91,9 +91,12 @@ export function useUsagePermission(): UsagePermissionState {
     // ── Initial load: check permission + read onboarding flag ──
     useEffect(() => {
         const init = async () => {
-            checkNativePermission();
-            await loadOnboardingFlag();
-            setIsLoading(false);
+            try {
+                checkNativePermission();
+                await loadOnboardingFlag();
+            } finally {
+                setIsLoading(false);
+            }
         };
         init();
     }, [checkNativePermission, loadOnboardingFlag]);

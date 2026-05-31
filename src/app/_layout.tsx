@@ -15,12 +15,12 @@ import { ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { Session } from '@supabase/supabase-js';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 
 import AuthScreen from '@/app/auth';
 import OnboardingScreen from '@/app/onboarding';
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import NetworkErrorScreen from '@/components/network-error-screen';
 import UsagePermissionScreen from '@/components/permission-screen';
 import { ThemeProvider, useNavTheme } from '@/context/ThemeContext';
@@ -35,6 +35,25 @@ GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID,
 });
 
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // The native splash may already be hidden during fast refresh.
+});
+
+const STARTUP_REQUEST_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Startup request timed out'));
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then(resolve)
+      .catch(reject)
+      .finally(() => clearTimeout(timeout));
+  });
+}
+
 function AppContent() {
   const navTheme = useNavTheme();
   const {
@@ -47,16 +66,31 @@ function AppContent() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [hasPurchasePin, setHasPurchasePin] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
 
   useEffect(() => {
     let mounted = true;
 
     async function loadSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (mounted) {
-        setSession(session);
-        setAuthLoading(false);
+      try {
+        const {
+          data: { session },
+        } = await withTimeout(
+          supabase.auth.getSession(),
+          STARTUP_REQUEST_TIMEOUT_MS,
+        );
+        if (mounted) {
+          setSession(session);
+        }
+      } catch (error) {
+        console.warn('Session startup load failed:', error);
+        if (mounted) {
+          setSession(null);
+        }
+      } finally {
+        if (mounted) {
+          setAuthLoading(false);
+        }
       }
     }
 
@@ -81,21 +115,35 @@ function AppContent() {
   useEffect(() => {
     if (!session) {
       setHasPurchasePin(false);
+      setProfileStatus('idle');
       return;
     }
 
     let mounted = true;
-    setProfileLoading(true);
+    setProfileStatus('loading');
 
-    supabase
-      .from('profiles')
-      .select('purchase_pin_set')
-      .eq('user_id', session.user.id)
-      .single()
+    withTimeout(
+      supabase
+        .from('profiles')
+        .select('purchase_pin_set')
+        .eq('user_id', session.user.id)
+        .single(),
+      STARTUP_REQUEST_TIMEOUT_MS,
+    )
       .then(({ data }) => {
         if (mounted) {
           setHasPurchasePin(!!data?.purchase_pin_set);
-          setProfileLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.warn('Profile startup load failed:', error);
+        if (mounted) {
+          setHasPurchasePin(false);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setProfileStatus('ready');
         }
       });
 
@@ -103,12 +151,21 @@ function AppContent() {
   }, [session]);
 
   // All loading states — show splash
-  if (authLoading || permissionLoading || profileLoading) {
-    return (
-      <NavThemeProvider value={navTheme}>
-        <AnimatedSplashOverlay />
-      </NavThemeProvider>
-    );
+  const startupLoading =
+    authLoading ||
+    permissionLoading ||
+    (!!session && profileStatus !== 'ready');
+
+  useEffect(() => {
+    if (!startupLoading) {
+      SplashScreen.hideAsync().catch(() => {
+        // The splash may already be hidden during development reloads.
+      });
+    }
+  }, [startupLoading]);
+
+  if (startupLoading) {
+    return null;
   }
 
   // Not signed in
@@ -176,19 +233,16 @@ export default function RootLayout() {
   });
   const { isChecking, isOnline, refresh } = useNetworkStatus();
 
+  useEffect(() => {
+    if (fontsLoaded && !isChecking && !isOnline) {
+      SplashScreen.hideAsync().catch(() => {
+        // The splash may already be hidden during development reloads.
+      });
+    }
+  }, [fontsLoaded, isChecking, isOnline]);
+
   if (!fontsLoaded || isChecking) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: '#0B1020',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <ActivityIndicator size="large" color="#6366F1" />
-      </View>
-    );
+    return null;
   }
 
   if (!isOnline) {

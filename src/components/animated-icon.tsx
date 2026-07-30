@@ -134,7 +134,7 @@ export function AnimatedSplashOverlay() {
       >
         <Image
           style={styles.icon}
-          source={require('@/assets/images/icon.png')}
+          source={require('@/assets/images/datawise-icon-v2.png')}
           contentFit="contain"
         />
       </Animated.View>

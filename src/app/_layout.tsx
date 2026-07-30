@@ -16,8 +16,8 @@ import { Session } from '@supabase/supabase-js';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import AuthScreen from '@/app/auth';
 import OnboardingScreen from '@/app/onboarding';
@@ -67,6 +67,7 @@ function AppContent() {
   const [authLoading, setAuthLoading] = useState(true);
   const [hasPurchasePin, setHasPurchasePin] = useState(false);
   const [profileStatus, setProfileStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
+  const [splashHidden, setSplashHidden] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -156,13 +157,17 @@ function AppContent() {
     permissionLoading ||
     (!!session && profileStatus !== 'ready');
 
-  useEffect(() => {
-    if (!startupLoading) {
-      SplashScreen.hideAsync().catch(() => {
-        // The splash may already be hidden during development reloads.
-      });
+  const hideSplashAfterLayout = useCallback(() => {
+    if (startupLoading || splashHidden) {
+      return;
     }
-  }, [startupLoading]);
+
+    SplashScreen.hideAsync()
+      .catch(() => {
+        // The splash may already be hidden during development reloads.
+      })
+      .finally(() => setSplashHidden(true));
+  }, [splashHidden, startupLoading]);
 
   if (startupLoading) {
     return null;
@@ -171,51 +176,59 @@ function AppContent() {
   // Not signed in
   if (!session) {
     return (
-      <NavThemeProvider value={navTheme}>
-        <AuthScreen />
-      </NavThemeProvider>
+      <View style={styles.appRoot} onLayout={hideSplashAfterLayout}>
+        <NavThemeProvider value={navTheme}>
+          <AuthScreen />
+        </NavThemeProvider>
+      </View>
     );
   }
 
   // Signed in but no purchase PIN yet
   if (!hasPurchasePin) {
     return (
-      <NavThemeProvider value={navTheme}>
-        <OnboardingScreen onComplete={() => setHasPurchasePin(true)} />
-      </NavThemeProvider>
+      <View style={styles.appRoot} onLayout={hideSplashAfterLayout}>
+        <NavThemeProvider value={navTheme}>
+          <OnboardingScreen onComplete={() => setHasPurchasePin(true)} />
+        </NavThemeProvider>
+      </View>
     );
   }
 
   // Signed in, has purchase PIN, but no usage permission
   if (Platform.OS === 'android' && !hasPermission) {
     return (
-      <NavThemeProvider value={navTheme}>
-        <UsagePermissionScreen
-          onboardingCompleted={onboardingCompleted}
-          onOpenSettings={openSettings}
-        />
-      </NavThemeProvider>
+      <View style={styles.appRoot} onLayout={hideSplashAfterLayout}>
+        <NavThemeProvider value={navTheme}>
+          <UsagePermissionScreen
+            onboardingCompleted={onboardingCompleted}
+            onOpenSettings={openSettings}
+          />
+        </NavThemeProvider>
+      </View>
     );
   }
 
   // All good — main app
   return (
-    <NavThemeProvider value={navTheme}>
-      <SensitiveValuesProvider>
-        <WalletProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="plan-picker" />
-            <Stack.Screen name="wallet-fund" />
-            <Stack.Screen name="paystack-callback" />
-            <Stack.Screen name="flutterwave-callback" />
-            <Stack.Screen name="confirm-purchase" />
-            <Stack.Screen name="purchase-success" />
-            <Stack.Screen name="transactions" />
-          </Stack>
-        </WalletProvider>
-      </SensitiveValuesProvider>
-    </NavThemeProvider>
+    <View style={styles.appRoot} onLayout={hideSplashAfterLayout}>
+      <NavThemeProvider value={navTheme}>
+        <SensitiveValuesProvider>
+          <WalletProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="plan-picker" />
+              <Stack.Screen name="wallet-fund" />
+              <Stack.Screen name="paystack-callback" />
+              <Stack.Screen name="flutterwave-callback" />
+              <Stack.Screen name="confirm-purchase" />
+              <Stack.Screen name="purchase-success" />
+              <Stack.Screen name="transactions" />
+            </Stack>
+          </WalletProvider>
+        </SensitiveValuesProvider>
+      </NavThemeProvider>
+    </View>
   );
 }
 
@@ -232,21 +245,44 @@ export default function RootLayout() {
     SpaceGrotesk_700Bold,
   });
   const { isChecking, isOnline, refresh } = useNetworkStatus();
+  const [offlineSplashHidden, setOfflineSplashHidden] = useState(false);
+
+  const hideOfflineSplashAfterLayout = useCallback(() => {
+    if (!fontsLoaded || isChecking || isOnline || offlineSplashHidden) {
+      return;
+    }
+
+    SplashScreen.hideAsync()
+      .catch(() => {
+        // The splash may already be hidden during development reloads.
+      })
+      .finally(() => setOfflineSplashHidden(true));
+  }, [fontsLoaded, isChecking, isOnline, offlineSplashHidden]);
 
   useEffect(() => {
-    if (fontsLoaded && !isChecking && !isOnline) {
-      SplashScreen.hideAsync().catch(() => {
-        // The splash may already be hidden during development reloads.
-      });
+    if (isOnline) {
+      setOfflineSplashHidden(false);
     }
-  }, [fontsLoaded, isChecking, isOnline]);
+  }, [isOnline]);
+
+  useEffect(() => {
+    return () => {
+      SplashScreen.hideAsync().catch(() => {
+        // Avoid leaving the native splash visible during fast-refresh teardown.
+      });
+    };
+  }, []);
 
   if (!fontsLoaded || isChecking) {
     return null;
   }
 
   if (!isOnline) {
-    return <NetworkErrorScreen isChecking={isChecking} onRetry={refresh} />;
+    return (
+      <View style={styles.appRoot} onLayout={hideOfflineSplashAfterLayout}>
+        <NetworkErrorScreen isChecking={isChecking} onRetry={refresh} />
+      </View>
+    );
   }
 
   return (
@@ -255,3 +291,10 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+    backgroundColor: '#0B1020',
+  },
+});

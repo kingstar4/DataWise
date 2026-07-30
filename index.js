@@ -3,15 +3,10 @@ import 'expo/src/Expo.fx';
 
 import { App } from 'expo-router/build/qualified-entry';
 import { AppRegistry, Platform } from 'react-native';
-import * as SplashScreen from 'expo-router/build/utils/splash';
 
 if (process.env.NODE_ENV !== 'production') {
   require('@expo/log-box/lib').setupLogBox();
 }
-
-setTimeout(() => {
-  SplashScreen._internal_preventAutoHideAsync?.();
-});
 
 AppRegistry.registerComponent('main', () => App);
 

@@ -20,7 +20,7 @@ export default function AuthScreen() {
           marginBottom: 12,
         }}
       >
-        DataWise
+        Data Budget
       </Text>
 
       {/* Subtitle */}

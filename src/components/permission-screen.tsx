@@ -61,8 +61,8 @@ export default function UsagePermissionScreen({
         : "Enable Usage Access";
 
     const subtitle = onboardingCompleted
-        ? "Usage access was revoked. DataWise needs this permission to show your app usage data and provide insights."
-        : "DataWise needs access to your app usage data to track data consumption and provide smart savings recommendations.";
+        ? "Usage access was revoked. DataBudget needs this permission to show your app usage data and provide insights."
+        : "DataBudget needs access to your app usage data to track data consumption and provide smart savings recommendations.";
 
     const buttonLabel = onboardingCompleted
         ? "Re-enable Access"
@@ -135,7 +135,7 @@ export default function UsagePermissionScreen({
                             1. Tap the button above to open Settings
                         </Text>
                         <Text style={styles.hintStep}>
-                            {'2. Find and tap "DataWise" in the list'}
+                            {'2. Find and tap "DataBudget" in the list'}
                         </Text>
                         <Text style={styles.hintStep}>
                             {'3. Toggle "Allow usage tracking" on'}

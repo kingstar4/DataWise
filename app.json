@@ -8,7 +8,8 @@
     "scheme": "datawise",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/app-icon.icon"
+      "icon": "./assets/app-icon.icon",
+      "bundleIdentifier": "com.thehubx.DataWise"
     },
     "android": {
       "adaptiveIcon": {
@@ -49,6 +50,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8207a701-d333-4625-81a3-1fef609b86cb"
+      }
     }
   }
 }

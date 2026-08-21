@@ -13,12 +13,14 @@ import {
   InsightCard,
   SegmentedControl,
   SensitiveValue,
-  SkeletonHeroValue,
   SkeletonAppList,
+  SkeletonHeroValue,
   ThemeToggle,
 } from '@/components/ui';
 import { BorderRadius, BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useThemeMode } from '@/context/ThemeContext';
+import { useWalletContext } from '@/context/WalletContext';
+import { normalizeCarrierName } from '@/data/bundles';
 import { useTheme } from '@/hooks/use-theme';
 import {
   type RecommendableBundle,
@@ -28,8 +30,6 @@ import {
 import { PERIOD_MAP, useDataUsage } from '@/hooks/useDataUsage';
 import { supabase } from '@/lib/supabase';
 import UsageAccess from '@/native/UsageAccess';
-import { normalizeCarrierName } from '@/data/bundles';
-import { useWalletContext } from '@/context/WalletContext';
 
 // Rotating palette for dynamically colored app icons
 const APP_COLORS = [
@@ -217,7 +217,7 @@ export default function HomeScreen() {
         <View style={styles.heroGreeting}>
           <View>
             <Text style={styles.greetingText}>{greeting}</Text>
-            <Text style={styles.appName}>DataWise</Text>
+            <Text style={styles.appName}>DataBudget</Text>
           </View>
           <ThemeToggle variant="hero" size={20} />
         </View>
